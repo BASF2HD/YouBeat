@@ -965,36 +965,66 @@ body {
 }
 
 [data-theme="light"] .nav-item.active {
-  color: #1d4ed8;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  color: #0f172a;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  font-weight: 700;
 }
 
-/* Buttons in Light Theme */
-[data-theme="light"] .btn-primary {
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+[data-theme="light"] .brand-logo {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+}
+
+[data-theme="light"] .brand-name {
+  background: none;
+  -webkit-text-fill-color: #0f172a;
+  color: #0f172a;
+}
+
+[data-theme="light"] .queue-indicator {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+[data-theme="light"] .queue-badge {
+  background: #475569 !important;
   color: #ffffff !important;
-  border: 1px solid #1d4ed8;
-  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
+[data-theme="light"] .play-icon {
+  color: #475569 !important;
+}
+
+/* Neutral, Non-Colorful Light Buttons */
+[data-theme="light"] .btn-primary {
+  background: #f8fafc;
+  color: #0f172a !important;
+  border: 1.5px solid #64748b;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="light"] .btn-primary:hover {
-  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-  color: #ffffff !important;
-  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.4);
+  background: #f1f5f9;
+  border-color: #334155;
+  color: #000000 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .btn-primary:disabled {
-  background: #e2e8f0 !important;
-  color: #94a3b8 !important;
-  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+  color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
   opacity: 1 !important;
   box-shadow: none !important;
 }
 
 [data-theme="light"] .btn-secondary {
   background: #ffffff;
-  color: #1e293b;
+  color: #334155;
   border: 1px solid #cbd5e1;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
@@ -1006,29 +1036,30 @@ body {
 }
 
 [data-theme="light"] .btn-secondary:disabled {
-  background: #f1f5f9 !important;
-  color: #94a3b8 !important;
+  background: #f8fafc !important;
+  color: #cbd5e1 !important;
   border-color: #e2e8f0 !important;
   opacity: 1 !important;
   box-shadow: none !important;
 }
 
 [data-theme="light"] .btn-danger {
-  background: #ef4444;
-  color: #ffffff !important;
-  border: 1px solid #dc2626;
-  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.25);
+  background: #ffffff;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 [data-theme="light"] .btn-danger:hover {
-  background: #dc2626;
-  color: #ffffff !important;
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a !important;
 }
 
 [data-theme="light"] .btn-danger:disabled {
-  background: #fee2e2 !important;
-  color: #fca5a5 !important;
-  border-color: #fecaca !important;
+  background: #f8fafc !important;
+  color: #cbd5e1 !important;
+  border-color: #e2e8f0 !important;
   opacity: 1 !important;
   box-shadow: none !important;
 }
@@ -1109,7 +1140,7 @@ body {
 }
 
 [data-theme="light"] .album-table tbody tr.selected {
-  background-color: #eff6ff;
+  background-color: #f1f5f9;
 }
 
 /* Inputs & Form Controls */
@@ -1123,8 +1154,8 @@ body {
 
 [data-theme="light"] .text-input:focus,
 [data-theme="light"] .select-input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: #475569;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
 }
 
 /* Theme & Palette Cards */
@@ -1140,9 +1171,10 @@ body {
 }
 
 [data-theme="light"] .theme-card.active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.15);
+  border-color: #475569;
+  background: #f1f5f9;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="light"] .palette-card {
@@ -1157,9 +1189,24 @@ body {
 }
 
 [data-theme="light"] .palette-card.active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.2);
+  border-color: #475569;
+  background: #f8fafc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .palette-badge {
+  color: #0f172a;
+}
+
+/* Badges & Status */
+[data-theme="light"] .badge-status-processing {
+  background-color: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+[data-theme="light"] .progress-bar-fill {
+  background: #475569;
 }
 
 /* Metadata Editor Modal */

@@ -484,7 +484,7 @@ export default function App() {
             className={`nav-item ${activeTab === 'queue' ? 'active' : ''}`}
             onClick={() => setActiveTab('queue')}
           >
-            <span>⚡</span> Queue {albums.filter(a => a.status === 'queued' || a.status === 'processing').length > 0 && <span style={{ background: 'var(--accent-primary)', fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '50%', color: 'white' }}>{albums.filter(a => a.status === 'queued' || a.status === 'processing').length}</span>}
+            <span>⚡</span> Queue {albums.filter(a => a.status === 'queued' || a.status === 'processing').length > 0 && <span className="queue-badge" style={{ background: 'var(--accent-primary)', fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '50%', color: 'white' }}>{albums.filter(a => a.status === 'queued' || a.status === 'processing').length}</span>}
           </button>
           <button 
             className={`nav-item ${activeTab === 'logs' ? 'active' : ''}`}
