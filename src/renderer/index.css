@@ -85,7 +85,7 @@ body {
 
 .nav-item:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--btn-secondary-hover);
 }
 
 .nav-item.active {
@@ -156,7 +156,7 @@ body {
 
 .btn-primary {
   background: var(--grad-hero);
-  color: var(--text-primary);
+  color: #ffffff;
   box-shadow: var(--shadow-sm);
 }
 
@@ -178,7 +178,7 @@ body {
 
 .btn-danger {
   background: var(--accent-danger);
-  color: var(--text-primary);
+  color: #ffffff;
 }
 
 .btn-danger:hover {
@@ -484,7 +484,7 @@ body {
 }
 
 .btn-preview-hide:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--btn-secondary-hover);
   color: var(--text-primary);
   border-color: var(--glass-border-focus);
 }
@@ -937,4 +937,239 @@ body {
 
 .empty-icon {
   font-size: 40px;
+}
+
+/* ==========================================================================
+   LIGHT THEME EXPLICIT COMPONENT & BUTTON STYLES
+   ========================================================================== */
+
+/* Top Navigation Bar */
+[data-theme="light"] .top-bar {
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .top-bar-separator {
+  background: #e2e8f0;
+}
+
+[data-theme="light"] .nav-item {
+  color: #64748b;
+  background: transparent;
+}
+
+[data-theme="light"] .nav-item:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+[data-theme="light"] .nav-item.active {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+/* Buttons in Light Theme */
+[data-theme="light"] .btn-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff !important;
+  border: 1px solid #1d4ed8;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
+[data-theme="light"] .btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  color: #ffffff !important;
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.4);
+}
+
+[data-theme="light"] .btn-primary:disabled {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="light"] .btn-secondary {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+[data-theme="light"] .btn-secondary:disabled {
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: #e2e8f0 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+[data-theme="light"] .btn-danger {
+  background: #ef4444;
+  color: #ffffff !important;
+  border: 1px solid #dc2626;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.25);
+}
+
+[data-theme="light"] .btn-danger:hover {
+  background: #dc2626;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .btn-danger:disabled {
+  background: #fee2e2 !important;
+  color: #fca5a5 !important;
+  border-color: #fecaca !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+/* Sidebar & Collapse Rail */
+[data-theme="light"] .side-pane {
+  background-color: #ffffff;
+  border-left: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .side-pane-collapsed {
+  background-color: #ffffff;
+  border-left: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .side-pane-collapsed:hover {
+  background-color: #f8fafc;
+}
+
+[data-theme="light"] .collapsed-preview-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .collapsed-preview-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+[data-theme="light"] .btn-preview-hide {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+}
+
+[data-theme="light"] .btn-preview-hide:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+[data-theme="light"] .preview-chevron-btn {
+  color: #64748b;
+}
+
+[data-theme="light"] .preview-chevron-btn:hover {
+  color: #0f172a;
+}
+
+/* Cards & Content Surfaces */
+[data-theme="light"] .scan-config-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .table-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .album-table th {
+  background-color: #f8fafc;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="light"] .album-table td {
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+[data-theme="light"] .album-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+[data-theme="light"] .album-table tbody tr.selected {
+  background-color: #eff6ff;
+}
+
+/* Inputs & Form Controls */
+[data-theme="light"] .text-input,
+[data-theme="light"] .select-input {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .text-input:focus,
+[data-theme="light"] .select-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Theme & Palette Cards */
+[data-theme="light"] .theme-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .theme-card:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+[data-theme="light"] .theme-card.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.15);
+}
+
+[data-theme="light"] .palette-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .palette-card:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+[data-theme="light"] .palette-card.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 12px rgba(37, 99, 235, 0.2);
+}
+
+/* Metadata Editor Modal */
+[data-theme="light"] .editor-dialog {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .editor-header,
+[data-theme="light"] .editor-footer {
+  border-color: #e2e8f0;
 }
