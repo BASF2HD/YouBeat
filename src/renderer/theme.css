@@ -1,18 +1,36 @@
-:root {
+:root,
+[data-theme="dark"] {
   /* Colors */
-  --bg-primary: #08080a;
-  --bg-secondary: #0f0f13;
-  --bg-tertiary: #16161c;
+  --bg-primary: #0a0b0e;
+  --bg-secondary: #121318;
+  --bg-tertiary: #191a22;
   
-  --glass-bg: rgba(18, 18, 24, 0.6);
-  --glass-bg-hover: rgba(26, 26, 36, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --glass-border-focus: rgba(255, 255, 255, 0.12);
+  --glass-bg: rgba(18, 19, 24, 0.7);
+  --glass-bg-hover: rgba(28, 29, 38, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-border-focus: rgba(255, 255, 255, 0.16);
   
-  --text-primary: #ffffff;
-  --text-secondary: #8e8e9c;
-  --text-muted: #575765;
+  --text-primary: #f5f6fa;
+  --text-secondary: #9699a8;
+  --text-muted: #5e6275;
   
+  /* Inputs & Table */
+  --input-bg: rgba(0, 0, 0, 0.35);
+  --table-bg: rgba(18, 19, 24, 0.65);
+  --table-header-bg: rgba(22, 24, 31, 0.95);
+  --table-row-hover: rgba(255, 255, 255, 0.03);
+  --table-row-selected: rgba(74, 158, 255, 0.08);
+  --btn-secondary-bg: rgba(255, 255, 255, 0.04);
+  --btn-secondary-hover: rgba(255, 255, 255, 0.09);
+  --badge-bg: rgba(255, 255, 255, 0.06);
+  --terminal-bg: #070709;
+  --terminal-text: #cdd6f4;
+  --terminal-shadow: inset 0 0 20px rgba(0, 0, 0, 0.85);
+  --progress-bg: rgba(255, 255, 255, 0.06);
+  --editor-backdrop-bg: rgba(0, 0, 0, 0.75);
+  --side-collapsed-hover: rgba(255, 255, 255, 0.04);
+  --details-card-bg: rgba(255, 255, 255, 0.02);
+
   /* Primary & Accent Tones */
   --accent-primary: hsl(207, 100%, 60%);    /* Neon Electric Blue */
   --accent-secondary: hsl(265, 90%, 65%);  /* Purple Cosmic */
@@ -22,7 +40,7 @@
   
   /* Gradients */
   --grad-hero: linear-gradient(135deg, hsl(207, 100%, 60%) 0%, hsl(265, 90%, 65%) 100%);
-  --grad-dark: linear-gradient(180deg, #0f0f13 0%, #060608 100%);
+  --grad-dark: linear-gradient(180deg, #121318 0%, #0a0b0e 100%);
   --grad-glass: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 100%);
   
   /* Shadow & Glow */
@@ -45,6 +63,58 @@
   --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] {
+  /* Colors */
+  --bg-primary: #f0f2f6;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #e4e7ee;
+  
+  --glass-bg: rgba(255, 255, 255, 0.92);
+  --glass-bg-hover: rgba(243, 245, 250, 0.98);
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --glass-border-focus: rgba(0, 0, 0, 0.18);
+  
+  --text-primary: #12141a;
+  --text-secondary: #585d6e;
+  --text-muted: #8a90a2;
+  
+  /* Inputs & Table */
+  --input-bg: #ffffff;
+  --table-bg: #ffffff;
+  --table-header-bg: #f7f8fb;
+  --table-row-hover: rgba(0, 0, 0, 0.025);
+  --table-row-selected: rgba(0, 115, 255, 0.08);
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-hover: #f1f3f8;
+  --badge-bg: rgba(0, 0, 0, 0.06);
+  --terminal-bg: #151821;
+  --terminal-text: #e2e6f3;
+  --terminal-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
+  --progress-bg: rgba(0, 0, 0, 0.08);
+  --editor-backdrop-bg: rgba(18, 20, 26, 0.45);
+  --side-collapsed-hover: rgba(0, 0, 0, 0.04);
+  --details-card-bg: rgba(0, 0, 0, 0.02);
+
+  /* Primary & Accent Tones */
+  --accent-primary: hsl(212, 100%, 48%);    /* Royal Electric Blue */
+  --accent-secondary: hsl(265, 80%, 55%);  /* Purple */
+  --accent-success: hsl(150, 80%, 35%);    /* Rich Emerald */
+  --accent-warning: hsl(36, 95%, 44%);     /* Warm Amber */
+  --accent-danger: hsl(355, 80%, 52%);     /* Deep Rose Red */
+  
+  /* Gradients */
+  --grad-hero: linear-gradient(135deg, hsl(212, 100%, 48%) 0%, hsl(265, 80%, 55%) 100%);
+  --grad-dark: linear-gradient(180deg, #ffffff 0%, #edf0f6 100%);
+  --grad-glass: linear-gradient(135deg, #ffffff 0%, #f7f9fc 100%);
+  
+  /* Shadow & Glow */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.11);
+  --glow-primary: 0 0 20px rgba(0, 115, 255, 0.12);
+  --glow-success: 0 0 20px rgba(30, 160, 80, 0.12);
 }
 
 /* Scrollbar styling */

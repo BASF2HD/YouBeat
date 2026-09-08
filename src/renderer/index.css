@@ -166,13 +166,13 @@ body {
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--btn-secondary-bg);
   color: var(--text-primary);
   border-color: var(--glass-border);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--btn-secondary-hover);
   border-color: var(--glass-border-focus);
 }
 
@@ -238,11 +238,11 @@ body {
 }
 
 .side-pane-collapsed:hover {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: var(--side-collapsed-hover);
 }
 
 .collapsed-preview-btn {
-  background: transparent;
+  background: var(--btn-secondary-bg);
   border: 1px solid var(--glass-border);
   color: var(--text-secondary);
   width: 28px;
@@ -259,7 +259,7 @@ body {
 .side-pane-collapsed:hover .collapsed-preview-btn {
   color: var(--text-primary);
   border-color: var(--glass-border-focus);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--btn-secondary-hover);
 }
 
 .collapsed-preview-text {
@@ -306,7 +306,7 @@ body {
 
 .text-input {
   flex: 1;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--input-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 10px 14px;
@@ -328,7 +328,7 @@ body {
   overflow-y: auto;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
-  background: rgba(15, 15, 19, 0.55);
+  background: var(--table-bg);
 }
 
 .album-table {
@@ -339,7 +339,7 @@ body {
 }
 
 .album-table th {
-  background-color: rgba(22, 22, 28, 0.85);
+  background-color: var(--table-header-bg);
   color: var(--text-secondary);
   font-weight: 600;
   padding: 14px 18px;
@@ -364,11 +364,11 @@ body {
 }
 
 .album-table tbody tr:hover {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--table-row-hover);
 }
 
 .album-table tbody tr.selected {
-  background-color: rgba(74, 158, 255, 0.04);
+  background-color: var(--table-row-selected);
 }
 
 .album-title-cell {
@@ -399,7 +399,7 @@ body {
 }
 
 .badge-status {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--badge-bg);
   color: var(--text-secondary);
   border: 1px solid var(--glass-border);
 }
@@ -655,7 +655,7 @@ body {
 }
 
 .select-input {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--input-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 10px;
@@ -665,6 +665,11 @@ body {
   outline: none;
   transition: var(--transition-fast);
   cursor: pointer;
+}
+
+.select-input option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .select-input:focus {
@@ -703,21 +708,133 @@ body {
   cursor: pointer;
 }
 
+/* Predefined Color Palettes */
+.palette-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  margin-bottom: 22px;
+}
+
+.palette-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  text-align: left;
+}
+
+.palette-card:hover {
+  border-color: var(--glass-border-focus);
+  background: var(--btn-secondary-hover);
+  transform: translateY(-1px);
+}
+
+.palette-card.active {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 12px rgba(74, 158, 255, 0.25);
+}
+
+.palette-preview-bar {
+  display: flex;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+}
+
+.palette-color-slice {
+  height: 100%;
+}
+
+.palette-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.palette-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.palette-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent-primary);
+}
+
+/* App Interface Theme Selector Cards */
+.theme-selector-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+  margin-bottom: 22px;
+}
+
+.theme-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--input-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  text-align: left;
+}
+
+.theme-card:hover {
+  border-color: var(--glass-border-focus);
+  background: var(--btn-secondary-hover);
+}
+
+.theme-card.active {
+  border-color: var(--accent-primary);
+  background: rgba(74, 158, 255, 0.08);
+  box-shadow: 0 0 12px rgba(74, 158, 255, 0.15);
+}
+
+.theme-icon {
+  font-size: 24px;
+}
+
+.theme-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.theme-card-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
 /* Terminal Log Panel */
 .terminal-card {
   flex: 1;
-  background-color: #060608;
+  background-color: var(--terminal-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 15px;
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 12px;
-  color: #cdd6f4;
+  color: var(--terminal-text);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+  box-shadow: var(--terminal-shadow);
 }
 
 .log-row {
@@ -735,7 +852,7 @@ body {
 .editor-backdrop {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--editor-backdrop-bg);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
@@ -795,7 +912,7 @@ body {
 .progress-bar-container {
   width: 100%;
   height: 4px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--progress-bg);
   border-radius: var(--radius-full);
   overflow: hidden;
   margin-top: 6px;

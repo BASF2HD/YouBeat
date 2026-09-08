@@ -12,6 +12,82 @@ const SYSTEM_FONTS = [
   { label: 'Georgia (Elegant warm)', value: 'Georgia' }
 ];
 
+export interface ColorPalette {
+  id: string;
+  name: string;
+  backgroundColor: string;
+  activeColor: string;
+  inactiveColor: string;
+  tag?: string;
+}
+
+export const PREDEFINED_PALETTES: ColorPalette[] = [
+  {
+    id: 'midnight',
+    name: 'Midnight Black',
+    backgroundColor: '#000000',
+    activeColor: '#ffffff',
+    inactiveColor: '#737373',
+    tag: 'Classic'
+  },
+  {
+    id: 'charcoal',
+    name: 'Studio Slate',
+    backgroundColor: '#111216',
+    activeColor: '#f1f2f6',
+    inactiveColor: '#6e7182',
+    tag: 'Modern'
+  },
+  {
+    id: 'cyan',
+    name: 'Cyber Neon',
+    backgroundColor: '#070b14',
+    activeColor: '#00f2fe',
+    inactiveColor: '#43587d',
+    tag: 'EDM / Synth'
+  },
+  {
+    id: 'amber',
+    name: 'Warm Sunset',
+    backgroundColor: '#140e0c',
+    activeColor: '#fbbf24',
+    inactiveColor: '#8a6e5a',
+    tag: 'Lo-fi / Acoustic'
+  },
+  {
+    id: 'emerald',
+    name: 'Emerald Echo',
+    backgroundColor: '#08130e',
+    activeColor: '#34d399',
+    inactiveColor: '#4d7060',
+    tag: 'Chill'
+  },
+  {
+    id: 'violet',
+    name: 'Neon Velvet',
+    backgroundColor: '#100a1a',
+    activeColor: '#c084fc',
+    inactiveColor: '#74598b',
+    tag: 'R&B / Soul'
+  },
+  {
+    id: 'paper',
+    name: 'Clean Studio',
+    backgroundColor: '#f5f5f7',
+    activeColor: '#121214',
+    inactiveColor: '#7a7a8c',
+    tag: 'Light Video'
+  },
+  {
+    id: 'crimson',
+    name: 'Crimson Night',
+    backgroundColor: '#14090a',
+    activeColor: '#f87171',
+    inactiveColor: '#845054',
+    tag: 'Rock / Bold'
+  }
+];
+
 export default function App() {
   // Tabs routing state
   const [activeTab, setActiveTab] = useState<'library' | 'queue' | 'logs' | 'settings'>('library');
@@ -72,6 +148,30 @@ export default function App() {
       const next = !prev;
       localStorage.setItem('show_preview_canvas', String(next));
       return next;
+    });
+  };
+
+  // App interface theme state ('dark' | 'light')
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('app_theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('app_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const applyPalette = (palette: ColorPalette) => {
+    updateSettings({
+      backgroundColor: palette.backgroundColor,
+      activeColor: palette.activeColor,
+      inactiveColor: palette.inactiveColor,
     });
   };
 
@@ -445,6 +545,15 @@ export default function App() {
               <span>👁️</span> Preview
             </button>
           )}
+
+          <button 
+            className="btn btn-secondary theme-toggle-btn" 
+            onClick={toggleTheme} 
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} mode`}
+            style={{ padding: '7px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>{theme === 'dark' ? '☀️' : '🌙'}</span> {theme === 'dark' ? 'Light' : 'Dark'}
+          </button>
         </div>
       </header>
 
@@ -730,7 +839,78 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="settings-section-title">Visual layout styling</div>
+                <div className="settings-section-title">App interface theme</div>
+                <div className="theme-selector-grid">
+                  <div 
+                    className={`theme-card ${theme === 'dark' ? 'active' : ''}`}
+                    onClick={() => setTheme('dark')}
+                  >
+                    <span className="theme-icon">🌙</span>
+                    <div>
+                      <div className="theme-card-title">Dark Theme</div>
+                      <div className="theme-card-desc">Sleek, high contrast dark workspace</div>
+                    </div>
+                  </div>
+                  <div 
+                    className={`theme-card ${theme === 'light' ? 'active' : ''}`}
+                    onClick={() => setTheme('light')}
+                  >
+                    <span className="theme-icon">☀️</span>
+                    <div>
+                      <div className="theme-card-title">Light Theme</div>
+                      <div className="theme-card-desc">Clean, bright daytime workspace</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="settings-section-title">Predefined video color palettes</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                  Select a curated designer palette or customize individual colors below:
+                </div>
+                <div className="palette-preset-grid">
+                  {PREDEFINED_PALETTES.map(palette => {
+                    const isSelected = 
+                      settings.backgroundColor.toLowerCase() === palette.backgroundColor.toLowerCase() &&
+                      settings.activeColor.toLowerCase() === palette.activeColor.toLowerCase() &&
+                      settings.inactiveColor.toLowerCase() === palette.inactiveColor.toLowerCase();
+                    return (
+                      <div 
+                        key={palette.id}
+                        className={`palette-card ${isSelected ? 'active' : ''}`}
+                        onClick={() => applyPalette(palette)}
+                        title={`Apply ${palette.name} palette`}
+                      >
+                        <div className="palette-preview-bar">
+                          <div 
+                            className="palette-color-slice" 
+                            style={{ width: '42%', backgroundColor: palette.backgroundColor }} 
+                            title={`Background: ${palette.backgroundColor}`}
+                          />
+                          <div 
+                            className="palette-color-slice" 
+                            style={{ width: '33%', backgroundColor: palette.activeColor }} 
+                            title={`Active Song: ${palette.activeColor}`}
+                          />
+                          <div 
+                            className="palette-color-slice" 
+                            style={{ width: '25%', backgroundColor: palette.inactiveColor }} 
+                            title={`Inactive Song: ${palette.inactiveColor}`}
+                          />
+                        </div>
+                        <div className="palette-info">
+                          <span className="palette-name">{palette.name}</span>
+                          {isSelected ? (
+                            <span className="palette-badge">✓ ACTIVE</span>
+                          ) : (
+                            <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{palette.tag}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="settings-section-title">Custom color & typography overrides</div>
                 <div className="settings-grid">
                   <div className="input-group">
                     <span className="input-label">Text font family</span>
@@ -912,7 +1092,7 @@ export default function App() {
                   )}
 
                   {/* Details list info card */}
-                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: 'var(--radius-lg)' }}>
+                  <div style={{ background: 'var(--details-card-bg)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: 'var(--radius-lg)' }}>
                     <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '8px' }}>Album Overview Details</h4>
                     
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
