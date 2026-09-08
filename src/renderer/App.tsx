@@ -834,7 +834,7 @@ export default function App() {
                           style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}
                         >
                           <div className="preview-track-num-col">
-                            {i === 0 ? '▶' : String(track.trackNumber || i + 1).padStart(2, '0')}
+                            {String(track.trackNumber || i + 1).padStart(2, '0')}
                           </div>
                           <div className="preview-track-info-col">
                             <div className="preview-track-title">{track.title}</div>

@@ -163,7 +163,7 @@ export function getSlideHTML(
     return `
       <div class="track-item ${activeClass}" style="margin-bottom: ${itemGap}; color: ${color}; padding-top: ${padding}; padding-bottom: ${padding};">
         <div class="track-icon-col">
-          ${isActive ? `<span class="play-icon" style="font-size: ${activeIconSize};">▶</span>` : `<span class="track-num">${trackNumDisplay}</span>`}
+          <span class="track-num" style="font-size: ${artistSize}; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
         </div>
         <div class="track-info-col">
           <div class="track-title" style="font-size: ${titleSize};">${escapeHtml(track.title)}</div>
