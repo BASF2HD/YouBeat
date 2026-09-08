@@ -366,108 +366,90 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* 1. Sidebar Container */}
-      <aside className="sidebar">
-        <div>
-          <div className="brand-section">
-            <div className="brand-logo">💿</div>
-            <div>
-              <div className="brand-name">Antigravity</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Bulk Video Engine</div>
-            </div>
-          </div>
-          
-          <nav className="nav-menu">
-            <button 
-              className={`nav-item ${activeTab === 'library' ? 'active' : ''}`}
-              onClick={() => setActiveTab('library')}
-            >
-              <span>📁</span> Music Library
-            </button>
-            <button 
-              className={`nav-item ${activeTab === 'queue' ? 'active' : ''}`}
-              onClick={() => setActiveTab('queue')}
-            >
-              <span>⚡</span> Render Queue {albums.filter(a => a.status === 'queued' || a.status === 'processing').length > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent-primary)', fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '50%', color: 'white' }}>{albums.filter(a => a.status === 'queued' || a.status === 'processing').length}</span>}
-            </button>
-            <button 
-              className={`nav-item ${activeTab === 'logs' ? 'active' : ''}`}
-              onClick={() => setActiveTab('logs')}
-            >
-              <span>💻</span> Process Logs
-            </button>
-            <button 
-              className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              <span>⚙️</span> Video Settings
-            </button>
-          </nav>
+      {/* 1. Top Navigation Bar */}
+      <header className="top-bar">
+        <div className="brand-section">
+          <div className="brand-logo">💿</div>
+          <div className="brand-name">Antigravity</div>
         </div>
+        
+        <nav className="nav-menu">
+          <button 
+            className={`nav-item ${activeTab === 'library' ? 'active' : ''}`}
+            onClick={() => setActiveTab('library')}
+          >
+            <span>📁</span> Library
+          </button>
+          <button 
+            className={`nav-item ${activeTab === 'queue' ? 'active' : ''}`}
+            onClick={() => setActiveTab('queue')}
+          >
+            <span>⚡</span> Queue {albums.filter(a => a.status === 'queued' || a.status === 'processing').length > 0 && <span style={{ background: 'var(--accent-primary)', fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '50%', color: 'white' }}>{albums.filter(a => a.status === 'queued' || a.status === 'processing').length}</span>}
+          </button>
+          <button 
+            className={`nav-item ${activeTab === 'logs' ? 'active' : ''}`}
+            onClick={() => setActiveTab('logs')}
+          >
+            <span>💻</span> Logs
+          </button>
+          <button 
+            className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            <span>⚙️</span> Settings
+          </button>
+        </nav>
 
-        {/* Global queue active controls */}
+        {/* Queue controls inline */}
         {isQueueRunning && (
-          <div style={{ marginTop: '20px', padding: '15px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-md)' }}>
-            <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--accent-primary)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span className="play-icon">▶</span> Video Processing Active
+          <>
+            <div className="top-bar-separator" />
+            <div className="queue-indicator">
+              <span className="play-icon">▶</span> Processing
             </div>
-            
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {!isQueuePaused ? (
-                <button className="btn btn-secondary" style={{ flex: 1, padding: '6px 0', fontSize: '11px' }} onClick={handlePauseQueue}>Pause</button>
-              ) : (
-                <button className="btn btn-primary" style={{ flex: 1, padding: '6px 0', fontSize: '11px' }} onClick={handleResumeQueue}>Resume</button>
-              )}
-              <button className="btn btn-danger" style={{ flex: 1, padding: '6px 0', fontSize: '11px' }} onClick={handleCancelQueue}>Abort</button>
-            </div>
-          </div>
+            {!isQueuePaused ? (
+              <button className="btn btn-secondary" style={{ padding: '6px 14px', fontSize: '11px' }} onClick={handlePauseQueue}>Pause</button>
+            ) : (
+              <button className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '11px' }} onClick={handleResumeQueue}>Resume</button>
+            )}
+            <button className="btn btn-danger" style={{ padding: '6px 14px', fontSize: '11px' }} onClick={handleCancelQueue}>Abort</button>
+          </>
         )}
-      </aside>
+
+        {/* Right-side action buttons */}
+        <div className="top-bar-actions">
+          {activeTab === 'library' && albums.length > 0 && (
+            <>
+              <button className="btn btn-secondary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleRenderSelected} disabled={!selectedAlbumId || isQueueRunning}>
+                Render Selected
+              </button>
+              <button className="btn btn-primary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleRenderAll} disabled={isQueueRunning}>
+                Render All ({albums.length})
+              </button>
+            </>
+          )}
+
+          {settings.outputFolder && (
+            <button className="btn btn-secondary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleOpenOutput}>
+              📂 Output
+            </button>
+          )}
+
+          {!showPreviewPane && (
+            <button 
+              className="btn btn-secondary" 
+              onClick={() => togglePreviewPane(true)} 
+              title="Show Live Preview section"
+              style={{ padding: '7px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <span>👁️</span> Preview
+            </button>
+          )}
+        </div>
+      </header>
 
       {/* 2. Workspace Viewport */}
       <main className="workspace">
-        {/* Header toolbar */}
-        <header className="workspace-header">
-          <div>
-            <h2 className="header-title">
-              {activeTab === 'library' && 'Albums library'}
-              {activeTab === 'queue' && 'Batch process progress'}
-              {activeTab === 'logs' && 'FFmpeg terminal console'}
-              {activeTab === 'settings' && 'App configurations'}
-            </h2>
-          </div>
-          
-          <div className="header-actions">
-            {activeTab === 'library' && albums.length > 0 && (
-              <>
-                <button className="btn btn-secondary" onClick={handleRenderSelected} disabled={!selectedAlbumId || isQueueRunning}>
-                  Render Selected
-                </button>
-                <button className="btn btn-primary" onClick={handleRenderAll} disabled={isQueueRunning}>
-                  Render All ({albums.length})
-                </button>
-              </>
-            )}
-
-            {settings.outputFolder && (
-              <button className="btn btn-secondary" onClick={handleOpenOutput}>
-                📂 Open output folder
-              </button>
-            )}
-
-            {!showPreviewPane && (
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => togglePreviewPane(true)} 
-                title="Show Live Preview section"
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <span>👁️</span> Live Preview
-              </button>
-            )}
-          </div>
-        </header>
-
         {/* Multi-Pane workspace body */}
         <div className={`workspace-content ${!showPreviewPane ? 'preview-collapsed' : ''}`}>
           
