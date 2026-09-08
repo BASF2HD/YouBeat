@@ -52,6 +52,29 @@ export default function App() {
   // Inline Metadata Editor Modal State
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
 
+  // Live Preview section visibility & collapse states
+  const [showPreviewPane, setShowPreviewPane] = useState<boolean>(() => {
+    const saved = localStorage.getItem('show_preview_pane');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [showPreviewCanvas, setShowPreviewCanvas] = useState<boolean>(() => {
+    const saved = localStorage.getItem('show_preview_canvas');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const togglePreviewPane = (val: boolean) => {
+    setShowPreviewPane(val);
+    localStorage.setItem('show_preview_pane', String(val));
+  };
+
+  const togglePreviewCanvas = () => {
+    setShowPreviewCanvas(prev => {
+      const next = !prev;
+      localStorage.setItem('show_preview_canvas', String(next));
+      return next;
+    });
+  };
+
   // Load basic configurations from localStorage upon mount
   useEffect(() => {
     const savedSettings = localStorage.getItem('render_settings');
@@ -431,11 +454,22 @@ export default function App() {
                 📂 Open output folder
               </button>
             )}
+
+            {!showPreviewPane && (
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => togglePreviewPane(true)} 
+                title="Show Live Preview section"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <span>👁️</span> Live Preview
+              </button>
+            )}
           </div>
         </header>
 
         {/* Multi-Pane workspace body */}
-        <div className="workspace-content">
+        <div className={`workspace-content ${!showPreviewPane ? 'preview-collapsed' : ''}`}>
           
           {/* Left panel context dependent */}
           <div className="main-pane">
@@ -795,100 +829,159 @@ export default function App() {
           </div>
 
           {/* Right sidebar: Live Visual Layout Preview */}
-          <div className="side-pane">
-            <span className="preview-title">Live layout visual preview</span>
-            
-            {selectedAlbum ? (
-              <>
-                {/* 16:9 Canvas preview simulator */}
-                <div className="visual-preview-canvas" style={{ backgroundColor: settings.backgroundColor }}>
-                  <div className="canvas-bg-glow" />
-                  
-                  {/* Left part: cover art */}
-                  <div className="preview-left">
-                    <div className="preview-cover-art-container">
-                      {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
-                        <img className="preview-cover-art" src={`file:///${selectedAlbum.coverPath.replace(/\\/g, '/')}`} />
-                      ) : (
-                        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, #2a2a35 0%, #111116 100%)', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '10px', textAlign: 'center' }}>
-                          💿 {selectedAlbum.albumName.slice(0, 20)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+          {showPreviewPane ? (
+            <div className="side-pane">
+              <div className="preview-header-bar">
+                <div 
+                  className="preview-title-group"
+                  onClick={togglePreviewCanvas}
+                  title={showPreviewCanvas ? "Hide preview canvas" : "Show preview canvas"}
+                >
+                  <button className="preview-chevron-btn" aria-label="Toggle preview canvas">
+                    <svg 
+                      className="preview-chevron-icon"
+                      width="14" 
+                      height="14" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2.5" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round"
+                      style={{
+                        transform: showPreviewCanvas ? 'rotate(90deg)' : 'rotate(0deg)',
+                      }}
+                    >
+                      <polyline points="9 18 15 12 9 6"></polyline>
+                    </svg>
+                  </button>
+                  <span className="preview-title">Live Preview</span>
+                </div>
 
-                  {/* Right part: track list preview */}
-                  <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
-                    <div className="preview-album-header">
-                      <div className="preview-album-name">{selectedAlbum.albumName}</div>
-                      <div className="preview-album-meta">
-                        {selectedAlbum.year} &bull; {selectedAlbum.tracksCount} Songs &bull; {totalDurationStr(selectedAlbum.totalDuration)}
+                <button 
+                  className="btn-preview-hide" 
+                  onClick={() => togglePreviewPane(false)}
+                  title="Hide Live Preview section"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+              
+              {selectedAlbum ? (
+                <>
+                  {/* 16:9 Canvas preview simulator */}
+                  {showPreviewCanvas && (
+                    <div className="visual-preview-canvas" style={{ backgroundColor: settings.backgroundColor }}>
+                      <div className="canvas-bg-glow" />
+                      
+                      {/* Left part: cover art */}
+                      <div className="preview-left">
+                        <div className="preview-cover-art-container">
+                          {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
+                            <img className="preview-cover-art" src={`file:///${selectedAlbum.coverPath.replace(/\\/g, '/')}`} />
+                          ) : (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, #2a2a35 0%, #111116 100%)', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '10px', textAlign: 'center' }}>
+                              💿 {selectedAlbum.albumName.slice(0, 20)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right part: track list preview */}
+                      <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
+                        <div className="preview-album-header">
+                          <div className="preview-album-name">{selectedAlbum.albumName}</div>
+                          <div className="preview-album-meta">
+                            {selectedAlbum.year} &bull; {selectedAlbum.tracksCount} Songs &bull; {totalDurationStr(selectedAlbum.totalDuration)}
+                          </div>
+                        </div>
+                        
+                        <div className="preview-tracklist">
+                          {selectedAlbum.tracks.slice(0, 6).map((track, i) => (
+                            <div 
+                              key={track.id} 
+                              className={`preview-track-item ${i === 0 ? 'preview-track-active' : ''}`}
+                              style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}
+                            >
+                              <div className="preview-track-num-col">
+                                {String(track.trackNumber || i + 1).padStart(2, '0')}
+                              </div>
+                              <div className="preview-track-info-col">
+                                <div className="preview-track-title">{track.title}</div>
+                                <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
+                                  {track.artist}
+                                </div>
+                              </div>
+                              <div className="preview-track-duration" style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}>
+                                {formatTrackTime(track.duration)}
+                              </div>
+                            </div>
+                          ))}
+                          {selectedAlbum.tracks.length > 6 && (
+                            <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.25)', paddingLeft: '22px', marginTop: '2px' }}>
+                              + {selectedAlbum.tracks.length - 6} more songs...
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="preview-tracklist">
-                      {selectedAlbum.tracks.slice(0, 6).map((track, i) => (
-                        <div 
-                          key={track.id} 
-                          className={`preview-track-item ${i === 0 ? 'preview-track-active' : ''}`}
-                          style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}
-                        >
-                          <div className="preview-track-num-col">
-                            {String(track.trackNumber || i + 1).padStart(2, '0')}
-                          </div>
-                          <div className="preview-track-info-col">
-                            <div className="preview-track-title">{track.title}</div>
-                            <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
-                              {track.artist}
-                            </div>
-                          </div>
-                          <div className="preview-track-duration" style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}>
-                            {formatTrackTime(track.duration)}
-                          </div>
-                        </div>
-                      ))}
-                      {selectedAlbum.tracks.length > 6 && (
-                        <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.25)', paddingLeft: '22px', marginTop: '2px' }}>
-                          + {selectedAlbum.tracks.length - 6} more songs...
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  )}
 
-                {/* Details list info card */}
-                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: 'var(--radius-lg)' }}>
-                  <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '8px' }}>Album Overview Details</h4>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Folder name:</span>
-                      <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{selectedAlbum.folderPath.split(/[\\/]/).pop()}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Total tracks:</span>
-                      <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{selectedAlbum.tracksCount} files</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Accumulated duration:</span>
-                      <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{totalDurationStr(selectedAlbum.totalDuration)}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>Audio file types:</span>
-                      <span style={{ fontWeight: '500', color: 'var(--accent-primary)', fontSize: '10px' }}>
-                        {Array.from(new Set(selectedAlbum.tracks.map(t => t.fileName.split('.').pop()?.toUpperCase()))).join(', ')}
-                      </span>
+                  {/* Details list info card */}
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: 'var(--radius-lg)' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '8px' }}>Album Overview Details</h4>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Folder name:</span>
+                        <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{selectedAlbum.folderPath.split(/[\\/]/).pop()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Total tracks:</span>
+                        <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{selectedAlbum.tracksCount} files</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Accumulated duration:</span>
+                        <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{totalDurationStr(selectedAlbum.totalDuration)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>Audio file types:</span>
+                        <span style={{ fontWeight: '500', color: 'var(--accent-primary)', fontSize: '10px' }}>
+                          {Array.from(new Set(selectedAlbum.tracks.map(t => t.fileName.split('.').pop()?.toUpperCase()))).join(', ')}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </>
-            ) : (
-              <div className="empty-state" style={{ height: '300px' }}>
-                <span>👁️</span>
-                <p style={{ fontSize: '11px', textAlign: 'center' }}>No album highlighted yet. Select any scanned folder inside the library table to load graphics layout.</p>
-              </div>
-            )}
-          </div>
+                </>
+              ) : (
+                showPreviewCanvas ? (
+                  <div className="empty-state" style={{ height: '300px' }}>
+                    <span>👁️</span>
+                    <p style={{ fontSize: '11px', textAlign: 'center' }}>No album highlighted yet. Select any scanned folder inside the library table to load graphics layout.</p>
+                  </div>
+                ) : (
+                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                    Live preview canvas hidden. Click chevron above to expand.
+                  </div>
+                )
+              )}
+            </div>
+          ) : (
+            <div 
+              className="side-pane-collapsed" 
+              onClick={() => togglePreviewPane(true)} 
+              title="Show Live Preview section"
+            >
+              <button className="collapsed-preview-btn" title="Show Live Preview section">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+              <span className="collapsed-preview-text">Live Preview</span>
+            </div>
+          )}
 
         </div>
       </main>
