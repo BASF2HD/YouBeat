@@ -427,8 +427,8 @@ export async function generateSlidesForAlbum(
       // Load HTML directly as a data URI
       await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
       
-      // Wait for image loading and layout paint (350ms ensures absolute rendering stability)
-      await new Promise(resolve => setTimeout(resolve, 350));
+      // Wait for layout paint (100ms for first slide to decode cover/fonts, 35ms for subsequent slides)
+      await new Promise(resolve => setTimeout(resolve, i === 0 ? 100 : 35));
       
       const image = await win.webContents.capturePage();
       const resizedImage = image.resize({ width, height, quality: 'best' });

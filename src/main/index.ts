@@ -5,7 +5,7 @@ import { Album, RenderSettings } from '../shared/types';
 import { scanForAlbums } from './scanner';
 import { parseAlbumFolder } from './metadata';
 import { queueManager } from './queueManager';
-import { testFfmpegPath } from './ffmpegService';
+import { testFfmpegPath, getAvailableHwEncoders } from './ffmpegService';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -93,21 +93,33 @@ ipcMain.handle('scan-albums', async (_event, rootFolder: string, recursive: bool
     const folders = await scanForAlbums(rootFolder, recursive);
     const tempCoversDir = path.join(app.getPath('userData'), 'temp_covers');
 
-    // Parse eligible folders into albums (with per-folder timeout to avoid hanging on network issues)
+    // Parse eligible folders into albums using a parallel worker pool (8 concurrent workers)
+    const CONCURRENCY = 8;
     const albums: Album[] = [];
-    for (const folder of folders) {
-      try {
-        const album = await Promise.race([
-          parseAlbumFolder(folder, tempCoversDir),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`Timeout parsing album: ${folder}`)), 30_000)
-          )
-        ]);
-        if (album.tracks.length > 0) {
-          albums.push(album);
+
+    for (let i = 0; i < folders.length; i += CONCURRENCY) {
+      const chunk = folders.slice(i, i + CONCURRENCY);
+      const parsedChunk = await Promise.all(
+        chunk.map(async (folder) => {
+          try {
+            const album = await Promise.race([
+              parseAlbumFolder(folder, tempCoversDir),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`Timeout parsing album: ${folder}`)), 15_000)
+              )
+            ]);
+            return album.tracks.length > 0 ? album : null;
+          } catch (err: any) {
+            console.error(`Skipping folder "${folder}": ${err.message}`);
+            return null;
+          }
+        })
+      );
+
+      for (const item of parsedChunk) {
+        if (item) {
+          albums.push(item);
         }
-      } catch (err: any) {
-        console.error(`Skipping folder "${folder}": ${err.message}`);
       }
     }
 
@@ -196,6 +208,15 @@ ipcMain.handle('get-ffmpeg-version', async (_event, pathStr: string): Promise<st
     return await testFfmpegPath(pathStr);
   } catch (err: any) {
     return `Error: ${err.message}`;
+  }
+});
+
+ipcMain.handle('get-hw-accelerators', async (): Promise<Array<{ id: string; name: string; available: boolean }>> => {
+  try {
+    return await getAvailableHwEncoders('ffmpeg');
+  } catch (err) {
+    console.error('Failed to get HW encoders:', err);
+    return [];
   }
 });
 

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   resumeQueue: () => ipcRenderer.invoke('resume-queue'),
   cancelQueue: () => ipcRenderer.invoke('cancel-queue'),
   getFfmpegVersion: (path: string) => ipcRenderer.invoke('get-ffmpeg-version', path),
+  getHwAccelerators: () => ipcRenderer.invoke('get-hw-accelerators'),
   openFolder: (path: string) => ipcRenderer.invoke('open-folder', path),
   
   onAlbumUpdated: (callback: (album: Album) => void) => {

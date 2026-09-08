@@ -30,7 +30,9 @@ export default function App() {
     fadeDuration: 0,
     scanRecursive: false,
     ffmpegPath: 'ffmpeg',
-    outputFolder: ''
+    outputFolder: '',
+    videoCodec: 'auto',
+    skipExisting: true
   });
 
   // Library scanning state
@@ -260,6 +262,17 @@ export default function App() {
   const handleVerifyFfmpeg = async () => {
     const res = await window.api.getFfmpegVersion(settings.ffmpegPath);
     alert(res);
+  };
+
+  // Detect available GPU hardware encoders
+  const handleDetectGpu = async () => {
+    try {
+      const gpus = await window.api.getHwAccelerators();
+      const statusText = gpus.map(g => `${g.name}: ${g.available ? '✅ Supported' : '❌ Not Available'}`).join('\n');
+      alert(`Hardware Acceleration Engines:\n\n${statusText}`);
+    } catch (err: any) {
+      alert(`GPU check failed: ${err.message}`);
+    }
   };
 
   const handleOpenOutput = async () => {
@@ -643,12 +656,27 @@ export default function App() {
                       placeholder="ffmpeg (checks system PATH)" 
                     />
                     <button className="btn btn-secondary" onClick={handleVerifyFfmpeg}>Test Binary</button>
+                    <button className="btn btn-secondary" onClick={handleDetectGpu}>Check GPU</button>
                   </div>
                   <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Leave as 'ffmpeg' if globally installed. Otherwise, select the path of your ffmpeg.exe.</span>
                 </div>
 
                 <div className="settings-section-title">Video encoding parameters</div>
                 <div className="settings-grid">
+                  <div className="input-group">
+                    <span className="input-label">Hardware Acceleration (GPU)</span>
+                    <select 
+                      className="select-input"
+                      value={settings.videoCodec || 'auto'}
+                      onChange={(e) => updateSettings({ videoCodec: e.target.value as any })}
+                    >
+                      <option value="auto">⚡ Auto-Detect Best (Recommended)</option>
+                      <option value="h264_qsv">Intel Quick Sync (h264_qsv)</option>
+                      <option value="h264_nvenc">NVIDIA NVENC (h264_nvenc)</option>
+                      <option value="h264_amf">AMD AMF (h264_amf)</option>
+                      <option value="libx264">CPU Software (libx264)</option>
+                    </select>
+                  </div>
                   <div className="input-group">
                     <span className="input-label">Video resolution</span>
                     <select 
@@ -745,6 +773,19 @@ export default function App() {
                       onChange={(e) => updateSettings({ artistItalic: e.target.checked })}
                     />
                     Render singer/artist below titles in italic font
+                  </label>
+                </div>
+
+                <div className="settings-section-title" style={{ marginTop: '25px' }}>Batch production & fast resume</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                  <label className="checkbox-row">
+                    <input 
+                      type="checkbox" 
+                      className="checkbox-input" 
+                      checked={settings.skipExisting}
+                      onChange={(e) => updateSettings({ skipExisting: e.target.checked })}
+                    />
+                    <span><strong>Skip already rendered albums (Fast Resume)</strong> — Skips albums if their finished MP4 already exists in the output folder. Essential for uninterrupted 1,000+ album batch jobs.</span>
                   </label>
                 </div>
 

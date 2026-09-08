@@ -61,6 +61,109 @@ export function testFfmpegPath(ffmpegPath: string): Promise<string> {
   });
 }
 
+/**
+ * Tests if a specific video encoder is functional on the host machine.
+ */
+export function testEncoderSupport(ffmpegPath: string, encoder: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const resolved = resolveFfmpegPath(ffmpegPath);
+    const proc = spawn(resolved, [
+      '-y',
+      '-f', 'lavfi',
+      '-i', 'testsrc=duration=0.04:size=64x64:rate=25',
+      '-c:v', encoder,
+      '-f', 'null',
+      '-'
+    ]);
+    proc.on('close', (code) => resolve(code === 0));
+    proc.on('error', () => resolve(false));
+  });
+}
+
+/**
+ * Returns available hardware acceleration engines.
+ */
+export async function getAvailableHwEncoders(ffmpegPath: string): Promise<Array<{ id: string; name: string; available: boolean }>> {
+  const encoders = [
+    { id: 'h264_qsv', name: 'Intel Quick Sync (h264_qsv)' },
+    { id: 'h264_nvenc', name: 'NVIDIA NVENC (h264_nvenc)' },
+    { id: 'h264_amf', name: 'AMD AMF (h264_amf)' },
+    { id: 'libx264', name: 'CPU Software (libx264)' }
+  ];
+
+  const results: Array<{ id: string; name: string; available: boolean }> = [];
+  for (const enc of encoders) {
+    if (enc.id === 'libx264') {
+      results.push({ ...enc, available: true });
+    } else {
+      const avail = await testEncoderSupport(ffmpegPath, enc.id);
+      results.push({ ...enc, available: avail });
+    }
+  }
+  return results;
+}
+
+/**
+ * Resolves the video encoding flags based on settings and available hardware.
+ */
+export async function resolveVideoCodecArgs(
+  ffmpegPath: string,
+  preferredCodec: RenderSettings['videoCodec'] = 'auto',
+  exportQuality: RenderSettings['exportQuality'] = 'medium'
+): Promise<{ codecName: string; codecArgs: string[] }> {
+  let chosenCodec = preferredCodec || 'auto';
+
+  if (chosenCodec === 'auto') {
+    // Try QSV first (standard on Intel Iris Xe / Core CPUs), then NVENC, then AMF, then libx264
+    if (await testEncoderSupport(ffmpegPath, 'h264_qsv')) {
+      chosenCodec = 'h264_qsv';
+    } else if (await testEncoderSupport(ffmpegPath, 'h264_nvenc')) {
+      chosenCodec = 'h264_nvenc';
+    } else if (await testEncoderSupport(ffmpegPath, 'h264_amf')) {
+      chosenCodec = 'h264_amf';
+    } else {
+      chosenCodec = 'libx264';
+    }
+  } else if (chosenCodec !== 'libx264') {
+    // Check if preferred HW encoder actually works, fallback to libx264 if not
+    const works = await testEncoderSupport(ffmpegPath, chosenCodec);
+    if (!works) {
+      chosenCodec = 'libx264';
+    }
+  }
+
+  // Configure quality parameters based on selected codec
+  if (chosenCodec === 'h264_qsv') {
+    // Intel QuickSync uses global_quality (1-51, lower is better)
+    const q = exportQuality === 'high' ? '20' : exportQuality === 'small' ? '28' : '23';
+    return {
+      codecName: 'Intel Quick Sync (h264_qsv)',
+      codecArgs: ['-c:v', 'h264_qsv', '-global_quality', q, '-preset', 'veryfast']
+    };
+  } else if (chosenCodec === 'h264_nvenc') {
+    // NVIDIA NVENC uses -cq (1-51)
+    const q = exportQuality === 'high' ? '19' : exportQuality === 'small' ? '28' : '23';
+    return {
+      codecName: 'NVIDIA NVENC (h264_nvenc)',
+      codecArgs: ['-c:v', 'h264_nvenc', '-cq', q, '-preset', 'p4']
+    };
+  } else if (chosenCodec === 'h264_amf') {
+    // AMD AMF uses -qp_i and -qp_p
+    const q = exportQuality === 'high' ? '19' : exportQuality === 'small' ? '28' : '23';
+    return {
+      codecName: 'AMD AMF (h264_amf)',
+      codecArgs: ['-c:v', 'h264_amf', '-rc', 'cqp', '-qp_i', q, '-qp_p', q]
+    };
+  } else {
+    // CPU libx264 fallback
+    const crf = exportQuality === 'high' ? '18' : exportQuality === 'small' ? '28' : '23';
+    return {
+      codecName: 'CPU Software (libx264)',
+      codecArgs: ['-c:v', 'libx264', '-crf', crf, '-preset', 'veryfast', '-tune', 'stillimage']
+    };
+  }
+}
+
 let activeProc: any = null;
 
 /**
@@ -178,9 +281,44 @@ export async function renderAlbumVideo(
     throw new Error(`FFmpeg not found or invalid! Please check setup instructions. Error: ${err.message}`);
   }
 
-  // Map quality setting to Constant Rate Factor (CRF)
-  // CRF range: 0 (lossless) - 51 (worst). 18 is visually lossless, 23 is default, 28 is mobile-friendly.
-  const crf = settings.exportQuality === 'high' ? '18' : settings.exportQuality === 'small' ? '28' : '23';
+  // Build final clean safe video and folder name: "Album Name (Year)"
+  const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
+  
+  // Dedicated folder for each album inside the output directory
+  const albumOutputDir = path.join(outDir, safeAlbumName);
+  if (!fs.existsSync(albumOutputDir)) {
+    await fs.promises.mkdir(albumOutputDir, { recursive: true });
+  }
+
+  const finalVideoPath = path.join(albumOutputDir, `${safeAlbumName}.mp4`);
+  const descriptionPath = path.join(albumOutputDir, `${safeAlbumName} - Description.txt`);
+  const thumbnailPath = path.join(albumOutputDir, `${safeAlbumName} - Thumbnail.jpg`);
+
+  // Fast Skip/Resume check: If video already rendered and valid (>1MB), skip immediately!
+  if (settings.skipExisting && fs.existsSync(finalVideoPath)) {
+    try {
+      const stat = await fs.promises.stat(finalVideoPath);
+      if (stat.size > 1024 * 1024) {
+        log(`[Fast Resume] Album already rendered (${(stat.size / (1024 * 1024)).toFixed(1)} MB). Skipping: "${album.albumName}"`, 'success');
+        onAlbumProgress(100);
+        return {
+          videoPath: finalVideoPath,
+          descriptionPath,
+          thumbnailPath,
+          albumOutputDir
+        };
+      }
+    } catch (e) {}
+  }
+
+  // Resolve video encoder (Hardware Acceleration / QuickSync / NVENC / CPU)
+  const { codecName, codecArgs } = await resolveVideoCodecArgs(
+    ffmpeg,
+    settings.videoCodec,
+    settings.exportQuality
+  );
+  log(`Video Encoding Engine: ${codecName}`, 'info');
+
   const [width, height] = settings.resolution.split('x').map(Number);
   const scaleFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`;
 
@@ -204,9 +342,8 @@ export async function renderAlbumVideo(
     // -t: Limit output video duration to match exactly the audio length
     // -map 0:v:0: Explicitly use slide image as video (ignores embedded cover art in audio file)
     // -map 1:a:0: Explicitly use track audio as audio stream
-    // -vf: Force even video dimensions & yuv420p to prevent libx264 external library errors (3752568763)
-    // -c:v libx264: H.264 video codec
-    // -crf: H.264 quality level
+    // -vf: Force even video dimensions & yuv420p to prevent encoder dimension errors
+    // ...codecArgs: Hardware acceleration or CPU libx264
     // -c:a aac: AAC audio codec
     // -ar 44100 -ac 2: Force sample rate and channels to match identically (vital for concat copy!)
     // -shortest: Ends the segment as soon as the shortest stream ends
@@ -219,10 +356,7 @@ export async function renderAlbumVideo(
       '-map', '0:v:0',
       '-map', '1:a:0',
       '-vf', scaleFilter,
-      '-c:v', 'libx264',
-      '-crf', crf,
-      '-preset', 'veryfast', // Balance rendering speed vs file size
-      '-tune', 'stillimage',  // Highly optimizes H.264 for static slides
+      ...codecArgs,
       '-c:a', 'aac',
       '-ar', '44100',
       '-ac', '2',
@@ -259,17 +393,6 @@ export async function renderAlbumVideo(
     
   await fs.promises.writeFile(concatListPath, concatFileContent, 'utf-8');
 
-  // Build final clean safe video and folder name: "Album Name (Year)"
-  const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
-  
-  // Create dedicated folder for each album inside the output directory
-  const albumOutputDir = path.join(outDir, safeAlbumName);
-  if (!fs.existsSync(albumOutputDir)) {
-    await fs.promises.mkdir(albumOutputDir, { recursive: true });
-  }
-
-  const finalVideoPath = path.join(albumOutputDir, `${safeAlbumName}.mp4`);
-
   // Concatenate command: -c copy duplicates both streams instantly
   const concatArgs = [
     '-y',
@@ -285,7 +408,6 @@ export async function renderAlbumVideo(
 
   // Step 3: Write YouTube description text and timestamps
   log('Generating YouTube-ready timestamps description file...', 'info');
-  const descriptionPath = path.join(albumOutputDir, `${safeAlbumName} - Description.txt`);
   
   let descriptionContent = `Album: ${album.albumName}\nYear: ${album.year}\nTracks: ${album.tracksCount}\nTotal Duration: ${formatDuration(album.totalDuration)}\n\n`;
   descriptionContent += '--- TRACKLIST TIMESTAMPS ---\n';
@@ -304,7 +426,6 @@ export async function renderAlbumVideo(
 
   // Step 4: Generate YouTube Thumbnail from first slide PNG
   log('Generating YouTube high-quality cover thumbnail...', 'info');
-  const thumbnailPath = path.join(albumOutputDir, `${safeAlbumName} - Thumbnail.jpg`);
   
   // Use FFmpeg to convert the first slide PNG to high quality JPG
   const thumbArgs = [

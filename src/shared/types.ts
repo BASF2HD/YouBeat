@@ -39,6 +39,8 @@ export interface RenderSettings {
   scanRecursive: boolean;
   ffmpegPath: string;
   outputFolder: string;
+  videoCodec: 'auto' | 'h264_qsv' | 'h264_nvenc' | 'h264_amf' | 'libx264';
+  skipExisting: boolean;
 }
 
 export interface LogItem {
@@ -61,6 +63,7 @@ export interface IPCAPI {
   onLogAdded: (callback: (log: LogItem) => void) => () => void;
   onQueueFinished: (callback: () => void) => () => void;
   getFfmpegVersion: (path: string) => Promise<string>;
+  getHwAccelerators: () => Promise<Array<{ id: string; name: string; available: boolean }>>;
   openFolder: (path: string) => Promise<void>;
 }
 
