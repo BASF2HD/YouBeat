@@ -7,6 +7,9 @@ import { parseAlbumFolder } from './metadata';
 import { queueManager } from './queueManager';
 import { testFfmpegPath, getAvailableHwEncoders } from './ffmpegService';
 
+// Suppress benign Electron dev-time security warnings
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
