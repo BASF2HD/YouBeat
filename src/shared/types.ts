@@ -33,6 +33,7 @@ export interface RenderSettings {
   activeColor: string;
   inactiveColor: string;
   artistItalic: boolean;
+  useJewelCase: boolean;
   exportQuality: 'high' | 'medium' | 'small';
   introDuration: number; // in seconds
   fadeDuration: number; // in seconds

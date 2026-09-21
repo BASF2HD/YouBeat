@@ -85,7 +85,8 @@ export function getSlideHTML(
   album: Album,
   activeTrackIndex: number,
   settings: RenderSettings,
-  coverBase64: string | null
+  coverBase64: string | null,
+  jewelCaseBase64: string | null = null
 ): string {
   const trackCount = album.tracks.length;
   let titleSize = '28px';
@@ -134,6 +135,12 @@ export function getSlideHTML(
   } else {
     coverImgSrc = `data:image/svg+xml;utf8,${encodeURIComponent(getDefaultCoverSVG(album.albumName, album.year))}`;
   }
+
+  const jewelCaseEnabled = settings.useJewelCase && Boolean(jewelCaseBase64);
+  const coverContainerClass = jewelCaseEnabled ? 'cover-art-container jewel-case-enabled' : 'cover-art-container';
+  const jewelCaseOverlayHTML = jewelCaseEnabled
+    ? `<img class="jewel-case-overlay" src="data:image/png;base64,${jewelCaseBase64}" />`
+    : '';
 
   // Adaptive tracklist viewport (up to 12 tracks to fit cleanly without overflowing)
   const maxVisibleTracks = 12;
@@ -232,11 +239,37 @@ export function getSlideHTML(
           border: 1px solid rgba(255,255,255,0.12);
         }
 
+        .cover-art-container.jewel-case-enabled {
+          aspect-ratio: 1344 / 1170;
+          background: transparent;
+          border: none;
+        }
+
         .cover-art {
           width: 100%;
           height: 100%;
           object-fit: cover;
           display: block;
+        }
+
+        .cover-art-container.jewel-case-enabled .cover-art {
+          position: absolute;
+          z-index: 1;
+          top: 4%;
+          left: 10.8%;
+          width: 86.5%;
+          height: 92%;
+          object-fit: cover;
+        }
+
+        .jewel-case-overlay {
+          position: absolute;
+          z-index: 2;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          pointer-events: none;
         }
 
         /* Right Side: Track List */
@@ -361,8 +394,9 @@ export function getSlideHTML(
     <body>
       <div class="container">
         <div class="left-panel">
-          <div class="cover-art-container">
+          <div class="${coverContainerClass}">
             <img class="cover-art" src="${coverImgSrc}" />
+            ${jewelCaseOverlayHTML}
           </div>
         </div>
         <div class="right-panel">
@@ -406,6 +440,19 @@ export async function generateSlidesForAlbum(
     }
   }
 
+  let jewelCaseBase64: string | null = null;
+  if (settings.useJewelCase) {
+    const jewelCasePath = path.join(__dirname, '../../resources/cd-jewel-case-overlay.png');
+    if (fs.existsSync(jewelCasePath)) {
+      try {
+        const buffer = await fs.promises.readFile(jewelCasePath);
+        jewelCaseBase64 = buffer.toString('base64');
+      } catch (err) {
+        console.error('Failed to read CD jewel case overlay:', err);
+      }
+    }
+  }
+
   // Create a hidden browser window
   const win = new BrowserWindow({
     show: false,
@@ -422,7 +469,7 @@ export async function generateSlidesForAlbum(
 
   try {
     for (let i = 0; i < album.tracks.length; i++) {
-      const htmlContent = getSlideHTML(album, i, settings, coverBase64);
+      const htmlContent = getSlideHTML(album, i, settings, coverBase64, jewelCaseBase64);
       
       // Load HTML directly as a data URI
       await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));

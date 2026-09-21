@@ -1,4 +1,4 @@
-# Bulk Album Video Generator 💿⚡
+# AlbumForge Studio
 
 An automated, ultra-premium Windows desktop application built with **Electron + React + TypeScript + Vite + FFmpeg** designed to batch compile gorgeous, high-fidelity YouTube-ready music album videos (`.mp4`) directly from folders.
 
@@ -26,7 +26,7 @@ An automated, ultra-premium Windows desktop application built with **Electron + 
 ## Project Structure
 
 ```
-Album Video Generator/
+AlbumForge Studio/
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
@@ -60,7 +60,7 @@ Album Video Generator/
 ### Get Started
 1. Clone or navigate into the project workspace:
    ```powershell
-   cd "C:\Users\User\Downloads\App\Album Video Generator"
+   cd "C:\path\to\AlbumForge Studio"
    ```
 2. Install npm dependencies:
    ```powershell

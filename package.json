@@ -1,9 +1,9 @@
 {
-  "name": "bulk-album-video-generator",
+  "name": "albumforge-studio",
   "version": "1.0.0",
-  "description": "Bulk Album Video Generator for YouTube MP4 production",
+  "description": "AlbumForge Studio — batch album-video production for YouTube",
   "main": "dist/main/index.js",
-  "author": "Antigravity",
+  "author": "AlbumForge Studio",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -31,13 +31,15 @@
     "vite": "^5.0.12"
   },
   "build": {
-    "appId": "com.antigravity.albumvideogenerator",
-    "productName": "Bulk Album Video Generator",
+    "appId": "com.albumforge.studio",
+    "productName": "AlbumForge Studio",
+    "icon": "resources/albumforge-icon.png",
     "directories": {
       "output": "dist-package"
     },
     "files": [
       "dist/**/*",
+      "resources/**/*",
       "index.html"
     ],
     "win": {

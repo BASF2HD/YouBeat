@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Album, RenderSettings, LogItem, Track } from '../shared/types';
+import appLogo from '../../resources/albumforge-icon.png';
+import jewelCaseOverlay from '../../resources/cd-jewel-case-overlay.png';
+
+const PREVIEW_PANE_MIN_WIDTH = 320;
+const PREVIEW_PANE_MAX_WIDTH = 720;
+
+const clampPreviewPaneWidth = (width: number) =>
+  Math.min(PREVIEW_PANE_MAX_WIDTH, Math.max(PREVIEW_PANE_MIN_WIDTH, width));
 
 // Supported font list for text layout
 const SYSTEM_FONTS = [
@@ -101,6 +109,7 @@ export default function App() {
     activeColor: '#ffffff',
     inactiveColor: '#888888',
     artistItalic: true,
+    useJewelCase: false,
     exportQuality: 'medium',
     introDuration: 0,
     fadeDuration: 0,
@@ -124,6 +133,7 @@ export default function App() {
   // Logging state
   const [logs, setLogs] = useState<LogItem[]>([]);
   const terminalEndRef = useRef<HTMLDivElement>(null);
+  const workspaceContentRef = useRef<HTMLDivElement>(null);
 
   // Inline Metadata Editor Modal State
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
@@ -137,6 +147,10 @@ export default function App() {
     const saved = localStorage.getItem('show_preview_canvas');
     return saved !== null ? saved === 'true' : true;
   });
+  const [previewPaneWidth, setPreviewPaneWidth] = useState<number>(() => {
+    const saved = Number(localStorage.getItem('preview_pane_width'));
+    return Number.isFinite(saved) && saved > 0 ? clampPreviewPaneWidth(saved) : 420;
+  });
 
   const togglePreviewPane = (val: boolean) => {
     setShowPreviewPane(val);
@@ -149,6 +163,57 @@ export default function App() {
       localStorage.setItem('show_preview_canvas', String(next));
       return next;
     });
+  };
+
+  const updatePreviewPaneWidth = (width: number) => {
+    const nextWidth = clampPreviewPaneWidth(width);
+    setPreviewPaneWidth(nextWidth);
+    localStorage.setItem('preview_pane_width', String(nextWidth));
+  };
+
+  const handlePreviewResizeStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = previewPaneWidth;
+    let nextWidth = startWidth;
+    let animationFrame: number | null = null;
+
+    document.body.classList.add('preview-resizing');
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      nextWidth = clampPreviewPaneWidth(startWidth + startX - moveEvent.clientX);
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        if (workspaceContentRef.current) {
+          workspaceContentRef.current.style.gridTemplateColumns = `minmax(0, 1fr) ${nextWidth}px`;
+        }
+        animationFrame = null;
+      });
+    };
+
+    const handlePointerUp = () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      updatePreviewPaneWidth(nextWidth);
+      document.body.classList.remove('preview-resizing');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
+  const handlePreviewResizeKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      updatePreviewPaneWidth(previewPaneWidth + 20);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      updatePreviewPaneWidth(previewPaneWidth - 20);
+    }
   };
 
   // App interface theme state ('dark' | 'light')
@@ -469,8 +534,13 @@ export default function App() {
       {/* 1. Top Navigation Bar */}
       <header className="top-bar">
         <div className="brand-section">
-          <div className="brand-logo">💿</div>
-          <div className="brand-name">Antigravity</div>
+          <div className="brand-logo">
+            <img src={appLogo} alt="" />
+          </div>
+          <div className="brand-wordmark">
+            <span className="brand-name">AlbumForge</span>
+            <span className="brand-edition">Studio</span>
+          </div>
         </div>
         
         <nav className="nav-menu">
@@ -560,7 +630,11 @@ export default function App() {
       {/* 2. Workspace Viewport */}
       <main className="workspace">
         {/* Multi-Pane workspace body */}
-        <div className={`workspace-content ${!showPreviewPane ? 'preview-collapsed' : ''}`}>
+        <div
+          ref={workspaceContentRef}
+          className={`workspace-content ${!showPreviewPane ? 'preview-collapsed' : ''}`}
+          style={showPreviewPane ? { gridTemplateColumns: `minmax(0, 1fr) ${previewPaneWidth}px` } : undefined}
+        >
           
           {/* Left panel context dependent */}
           <div className="main-pane">
@@ -598,11 +672,11 @@ export default function App() {
                     </label>
 
                     <button 
-                      className="btn btn-primary" 
+                      className="btn btn-primary scan-library-btn" 
                       onClick={handleScan}
                       disabled={!rootFolder || isScanning || isQueueRunning}
                     >
-                      {isScanning ? 'Scanning Folders...' : '🔍 Scan Music Library'}
+                      {isScanning ? 'Scanning…' : 'Scan Library'}
                     </button>
                   </div>
                 </div>
@@ -652,8 +726,7 @@ export default function App() {
                             </td>
                             <td style={{ textAlign: 'right' }}>
                               <button 
-                                className="btn btn-secondary" 
-                                style={{ padding: '4px 8px', fontSize: '11px', borderRadius: '4px' }}
+                                className="btn btn-secondary table-action-btn" 
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   openMetadataEditor(album);
@@ -863,6 +936,21 @@ export default function App() {
                   </div>
                 </div>
 
+                <div className="settings-section-title">Album artwork presentation</div>
+                <label className={`jewel-case-setting ${settings.useJewelCase ? 'active' : ''}`}>
+                  <input
+                    type="checkbox"
+                    className="checkbox-input"
+                    checked={settings.useJewelCase}
+                    onChange={(e) => updateSettings({ useJewelCase: e.target.checked })}
+                  />
+                  <img src={jewelCaseOverlay} alt="" />
+                  <span className="jewel-case-setting-copy">
+                    <strong>Add CD jewel case</strong>
+                    <small>Frame album artwork with the supplied transparent jewel-case overlay in previews and final videos.</small>
+                  </span>
+                </label>
+
                 <div className="settings-section-title">Predefined video color palettes</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
                   Select a curated designer palette or customize individual colors below:
@@ -992,146 +1080,173 @@ export default function App() {
 
           {/* Right sidebar: Live Visual Layout Preview */}
           {showPreviewPane ? (
-            <div className="side-pane">
-              <div className="preview-header-bar">
-                <div 
-                  className="preview-title-group"
-                  onClick={togglePreviewCanvas}
-                  title={showPreviewCanvas ? "Hide preview canvas" : "Show preview canvas"}
-                >
-                  <button className="preview-chevron-btn" aria-label="Toggle preview canvas">
-                    <svg 
-                      className="preview-chevron-icon"
-                      width="14" 
-                      height="14" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2.5" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                      style={{
-                        transform: showPreviewCanvas ? 'rotate(90deg)' : 'rotate(0deg)',
-                      }}
+            <aside className="preview-pane-shell">
+              <div
+                className="preview-resize-handle"
+                role="separator"
+                aria-label="Resize live preview section"
+                aria-orientation="vertical"
+                aria-valuemin={PREVIEW_PANE_MIN_WIDTH}
+                aria-valuemax={PREVIEW_PANE_MAX_WIDTH}
+                aria-valuenow={previewPaneWidth}
+                tabIndex={0}
+                title="Drag to resize the Live Preview section"
+                onPointerDown={handlePreviewResizeStart}
+                onKeyDown={handlePreviewResizeKeyDown}
+              >
+                <span className="preview-resize-grip" aria-hidden="true" />
+              </div>
+              <section className="side-pane" aria-label="Live preview panel">
+                <div className="preview-header-bar">
+                  <div
+                    className="preview-title-group"
+                    onClick={togglePreviewCanvas}
+                    title={showPreviewCanvas ? 'Hide preview canvas' : 'Show preview canvas'}
+                  >
+                    <button className="preview-chevron-btn" aria-label="Toggle preview canvas">
+                      <svg
+                        className="preview-chevron-icon"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ transform: showPreviewCanvas ? 'rotate(90deg)' : 'rotate(0deg)' }}
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                    <span className="preview-heading-copy">
+                      <span className="preview-eyebrow">Output monitor</span>
+                      <span className="preview-title">Live Preview</span>
+                    </span>
+                  </div>
+
+                  <div className="preview-header-actions">
+                    <span className="preview-format-pill">16:9</span>
+                    <button
+                      className="btn-preview-hide"
+                      onClick={() => togglePreviewPane(false)}
+                      title="Hide Live Preview section"
+                      aria-label="Hide Live Preview section"
                     >
-                      <polyline points="9 18 15 12 9 6"></polyline>
-                    </svg>
-                  </button>
-                  <span className="preview-title">Live Preview</span>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
-                <button 
-                  className="btn-preview-hide" 
-                  onClick={() => togglePreviewPane(false)}
-                  title="Hide Live Preview section"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                </button>
-              </div>
-              
-              {selectedAlbum ? (
-                <>
-                  {/* 16:9 Canvas preview simulator */}
-                  {showPreviewCanvas && (
-                    <div className="visual-preview-canvas" style={{ backgroundColor: settings.backgroundColor }}>
-                      <div className="canvas-bg-glow" />
-                      
-                      {/* Left part: cover art */}
-                      <div className="preview-left">
-                        <div className="preview-cover-art-container">
-                          {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
-                            <img className="preview-cover-art" src={`file:///${selectedAlbum.coverPath.replace(/\\/g, '/')}`} />
-                          ) : (
-                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'radial-gradient(circle, #2a2a35 0%, #111116 100%)', color: '#fff', fontSize: '10px', fontWeight: 'bold', padding: '10px', textAlign: 'center' }}>
-                              💿 {selectedAlbum.albumName.slice(0, 20)}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                <div className="preview-pane-body">
+                  {selectedAlbum ? (
+                    <>
+                      {showPreviewCanvas && (
+                        <div className="preview-stage-card">
+                          <div className="visual-preview-canvas" style={{ backgroundColor: settings.backgroundColor }}>
+                            <div className="canvas-bg-glow" />
 
-                      {/* Right part: track list preview */}
-                      <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
-                        <div className="preview-album-header">
-                          <div className="preview-album-name">{selectedAlbum.albumName}</div>
-                          <div className="preview-album-meta">
-                            {selectedAlbum.year} &bull; {selectedAlbum.tracksCount} Songs &bull; {totalDurationStr(selectedAlbum.totalDuration)}
-                          </div>
-                        </div>
-                        
-                        <div className="preview-tracklist">
-                          {selectedAlbum.tracks.slice(0, 6).map((track, i) => (
-                            <div 
-                              key={track.id} 
-                              className={`preview-track-item ${i === 0 ? 'preview-track-active' : ''}`}
-                              style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}
-                            >
-                              <div className="preview-track-num-col">
-                                {String(track.trackNumber || i + 1).padStart(2, '0')}
+                            <div className="preview-left">
+                              <div className={`preview-cover-art-container ${settings.useJewelCase ? 'jewel-case-enabled' : ''}`}>
+                                {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
+                                  <img className="preview-cover-art" src={`file:///${selectedAlbum.coverPath.replace(/\\/g, '/')}`} />
+                                ) : (
+                                  <div className="preview-cover-placeholder">
+                                    <span>AF</span>
+                                    {selectedAlbum.albumName.slice(0, 20)}
+                                  </div>
+                                )}
+                                {settings.useJewelCase && (
+                                  <img className="preview-jewel-case-overlay" src={jewelCaseOverlay} alt="" />
+                                )}
                               </div>
-                              <div className="preview-track-info-col">
-                                <div className="preview-track-title">{track.title}</div>
-                                <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
-                                  {track.artist}
+                            </div>
+
+                            <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
+                              <div className="preview-album-header">
+                                <div className="preview-album-name">{selectedAlbum.albumName}</div>
+                                <div className="preview-album-meta">
+                                  {selectedAlbum.year} &bull; {selectedAlbum.tracksCount} Songs &bull; {totalDurationStr(selectedAlbum.totalDuration)}
                                 </div>
                               </div>
-                              <div className="preview-track-duration" style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}>
-                                {formatTrackTime(track.duration)}
+
+                              <div className="preview-tracklist">
+                                {selectedAlbum.tracks.slice(0, 6).map((track, i) => (
+                                  <div
+                                    key={track.id}
+                                    className={`preview-track-item ${i === 0 ? 'preview-track-active' : ''}`}
+                                    style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}
+                                  >
+                                    <div className="preview-track-num-col">
+                                      {String(track.trackNumber || i + 1).padStart(2, '0')}
+                                    </div>
+                                    <div className="preview-track-info-col">
+                                      <div className="preview-track-title">{track.title}</div>
+                                      <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
+                                        {track.artist}
+                                      </div>
+                                    </div>
+                                    <div className="preview-track-duration" style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}>
+                                      {formatTrackTime(track.duration)}
+                                    </div>
+                                  </div>
+                                ))}
+                                {selectedAlbum.tracks.length > 6 && (
+                                  <div className="preview-more-tracks">+ {selectedAlbum.tracks.length - 6} more songs</div>
+                                )}
                               </div>
                             </div>
-                          ))}
-                          {selectedAlbum.tracks.length > 6 && (
-                            <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.25)', paddingLeft: '22px', marginTop: '2px' }}>
-                              + {selectedAlbum.tracks.length - 6} more songs...
-                            </div>
-                          )}
+                          </div>
+                          <div className="preview-stage-meta">
+                            <span><i /> Layout preview</span>
+                            <span>{settings.resolution} · {settings.fps} fps</span>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="album-overview-card">
+                        <div className="album-overview-heading">
+                          <span>Album overview</span>
+                          <span className="album-ready-badge">Ready</span>
+                        </div>
+                        <div className="album-overview-list">
+                          <div className="album-overview-row">
+                            <span>Folder</span>
+                            <strong>{selectedAlbum.folderPath.split(/[\\/]/).pop()}</strong>
+                          </div>
+                          <div className="album-overview-row">
+                            <span>Tracks</span>
+                            <strong>{selectedAlbum.tracksCount} files</strong>
+                          </div>
+                          <div className="album-overview-row">
+                            <span>Duration</span>
+                            <strong>{totalDurationStr(selectedAlbum.totalDuration)}</strong>
+                          </div>
+                          <div className="album-overview-row">
+                            <span>Audio</span>
+                            <strong className="album-format-value">
+                              {Array.from(new Set(selectedAlbum.tracks.map(t => t.fileName.split('.').pop()?.toUpperCase()))).join(', ')}
+                            </strong>
+                          </div>
                         </div>
                       </div>
+                    </>
+                  ) : showPreviewCanvas ? (
+                    <div className="preview-empty-state">
+                      <img src={appLogo} alt="" />
+                      <strong>Select an album to preview</strong>
+                      <p>Choose any scanned folder from the library to inspect its final video layout here.</p>
                     </div>
+                  ) : (
+                    <div className="preview-canvas-hidden">Preview hidden. Use the chevron above to expand it.</div>
                   )}
-
-                  {/* Details list info card */}
-                  <div style={{ background: 'var(--details-card-bg)', border: '1px solid var(--glass-border)', padding: '18px', borderRadius: 'var(--radius-lg)' }}>
-                    <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '8px' }}>Album Overview Details</h4>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Folder name:</span>
-                        <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{selectedAlbum.folderPath.split(/[\\/]/).pop()}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Total tracks:</span>
-                        <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{selectedAlbum.tracksCount} files</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Accumulated duration:</span>
-                        <span style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{totalDurationStr(selectedAlbum.totalDuration)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>Audio file types:</span>
-                        <span style={{ fontWeight: '500', color: 'var(--accent-primary)', fontSize: '10px' }}>
-                          {Array.from(new Set(selectedAlbum.tracks.map(t => t.fileName.split('.').pop()?.toUpperCase()))).join(', ')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                showPreviewCanvas ? (
-                  <div className="empty-state" style={{ height: '300px' }}>
-                    <span>👁️</span>
-                    <p style={{ fontSize: '11px', textAlign: 'center' }}>No album highlighted yet. Select any scanned folder inside the library table to load graphics layout.</p>
-                  </div>
-                ) : (
-                  <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
-                    Live preview canvas hidden. Click chevron above to expand.
-                  </div>
-                )
-              )}
-            </div>
+                </div>
+              </section>
+            </aside>
           ) : (
-            <div 
+            <aside
               className="side-pane-collapsed" 
               onClick={() => togglePreviewPane(true)} 
               title="Show Live Preview section"
@@ -1142,7 +1257,7 @@ export default function App() {
                 </svg>
               </button>
               <span className="collapsed-preview-text">Live Preview</span>
-            </div>
+            </aside>
           )}
 
         </div>

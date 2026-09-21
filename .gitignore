@@ -1,5 +1,6 @@
 ﻿# Dependencies
 node_modules/
+.pnpm-store/
 
 # Production build outputs
 dist/
@@ -29,3 +30,6 @@ desktop.ini
 # Environment / Local config
 .env
 .env.local
+
+# Sample media (not source)
+Example Album (1987)/

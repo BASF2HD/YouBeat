@@ -9,10 +9,17 @@ import { testFfmpegPath, getAvailableHwEncoders } from './ffmpegService';
 
 // Suppress benign Electron dev-time security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+app.setName('AlbumForge Studio');
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
+  const appIconPath = path.join(__dirname, '../../resources/albumforge-icon.png');
+
+  if (process.platform === 'darwin' && fs.existsSync(appIconPath)) {
+    app.dock?.setIcon(appIconPath);
+  }
+
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 850,
@@ -20,7 +27,8 @@ function createWindow() {
     minHeight: 700,
     center: true,
     show: true,
-    title: 'Bulk Album Video Generator',
+    title: 'AlbumForge Studio',
+    icon: appIconPath,
     frame: true, // Native frames are most reliable on Windows
     autoHideMenuBar: true,
     backgroundColor: '#0a0a0c', // Dark modern backdrop matches theme
@@ -40,7 +48,7 @@ function createWindow() {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
-    if (!app.isPackaged) {
+    if (!app.isPackaged && process.env.OPEN_DEVTOOLS === 'true') {
       mainWindow.webContents.openDevTools({ mode: 'detach' });
     }
   }
