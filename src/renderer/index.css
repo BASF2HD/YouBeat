@@ -493,6 +493,38 @@ body.preview-resizing .workspace-content {
 .library-table th:nth-child(7) { width: 18%; }
 .library-table th:nth-child(8) { width: 82px; }
 
+.queue-table .queue-open-column {
+  width: 42px;
+  padding: 2px 7px;
+  text-align: center;
+  overflow: visible;
+}
+
+.queue-open-video {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 1px solid var(--glass-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.queue-open-video:hover:not(:disabled),
+.queue-open-video:focus-visible {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.queue-open-video:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .album-table td {
   height: 30px;
   padding: 4px 10px;

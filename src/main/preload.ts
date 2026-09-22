@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('api', {
   getFfmpegVersion: (path: string) => ipcRenderer.invoke('get-ffmpeg-version', path),
   getHwAccelerators: () => ipcRenderer.invoke('get-hw-accelerators'),
   openFolder: (path: string) => ipcRenderer.invoke('open-folder', path),
+  openVideo: (path: string) => ipcRenderer.invoke('open-video', path),
   
   onAlbumUpdated: (callback: (album: Album) => void) => {
     const listener = (_event: any, album: Album) => callback(album);

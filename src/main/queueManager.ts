@@ -101,6 +101,7 @@ class QueueManager {
       album.status = 'queued';
       album.progress = 0;
       album.error = undefined;
+      album.outputVideoPath = undefined;
       
       // If already in queue, update it, otherwise push
       const idx = this.queue.findIndex(q => q.id === album.id);
@@ -210,6 +211,7 @@ class QueueManager {
       // Complete
       album.status = 'completed';
       album.progress = 100;
+      album.outputVideoPath = results.videoPath;
       this.batchCompletedCount++;
       this.emit('album-updated', album);
       this.log(`Album rendering succeeded: "${album.albumName}". Saved to: ${results.albumOutputDir}`, 'success');

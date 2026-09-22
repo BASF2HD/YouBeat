@@ -253,3 +253,15 @@ ipcMain.handle('open-folder', async (_event, folderPathStr: string): Promise<voi
     }
   }
 });
+
+ipcMain.handle('open-video', async (_event, videoPath: string): Promise<void> => {
+  if (typeof videoPath !== 'string' || path.extname(videoPath).toLowerCase() !== '.mp4') {
+    throw new Error('Invalid video path.');
+  }
+  const stat = await fs.promises.stat(videoPath);
+  if (!stat.isFile()) {
+    throw new Error('The rendered video is no longer available.');
+  }
+  const error = await shell.openPath(videoPath);
+  if (error) throw new Error(error);
+});

@@ -500,6 +500,14 @@ export default function App() {
     }
   };
 
+  const handleOpenRenderedVideo = async (videoPath: string) => {
+    try {
+      await window.api.openVideo(videoPath);
+    } catch (err: any) {
+      alert(`Could not open the rendered video: ${err.message}`);
+    }
+  };
+
   const handleCopyLogs = async () => {
     if (logs.length === 0) return;
     const text = logs.map(log => `[${log.timestamp}] ${log.text}`).join('\n');
@@ -821,13 +829,14 @@ export default function App() {
                 </div>
 
                 {albums.filter(a => a.status !== 'idle').length > 0 ? (
-                  <table className="album-table">
+                  <table className="album-table queue-table">
                     <thead>
                       <tr>
                         <th>Album</th>
                         <th>Tracks</th>
                         <th>Progress</th>
                         <th>Status</th>
+                        <th className="queue-open-column" aria-label="Open video"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -848,6 +857,21 @@ export default function App() {
                               {album.status}
                             </span>
                             {album.error && <div style={{ color: 'var(--accent-danger)', fontSize: '10px', marginTop: '4px' }}>{album.error}</div>}
+                          </td>
+                          <td className="queue-open-column">
+                            <button
+                              type="button"
+                              className="queue-open-video"
+                              aria-label={`Open rendered video for ${album.albumName}`}
+                              title={album.outputVideoPath ? 'Open rendered video' : 'Video available after rendering completes'}
+                              disabled={album.status !== 'completed' || !album.outputVideoPath}
+                              onClick={() => album.outputVideoPath && handleOpenRenderedVideo(album.outputVideoPath)}
+                            >
+                              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <circle cx="10.8" cy="10.8" r="6.3" />
+                                <path d="m15.5 15.5 5 5" />
+                              </svg>
+                            </button>
                           </td>
                         </tr>
                       ))}

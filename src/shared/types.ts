@@ -23,6 +23,7 @@ export interface Album {
   status: 'idle' | 'queued' | 'processing' | 'completed' | 'failed';
   progress: number; // 0 to 100
   error?: string;
+  outputVideoPath?: string;
 }
 
 export interface RenderSettings {
@@ -68,6 +69,7 @@ export interface IPCAPI {
   getFfmpegVersion: (path: string) => Promise<string>;
   getHwAccelerators: () => Promise<Array<{ id: string; name: string; available: boolean }>>;
   openFolder: (path: string) => Promise<void>;
+  openVideo: (path: string) => Promise<void>;
 }
 
 declare global {
