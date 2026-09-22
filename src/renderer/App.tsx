@@ -124,6 +124,7 @@ export default function App() {
   const [rootFolder, setRootFolder] = useState<string>('');
   const [albums, setAlbums] = useState<Album[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
+  const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<string>>(() => new Set());
   const [isScanning, setIsScanning] = useState<boolean>(false);
 
   // Queue state
@@ -134,6 +135,7 @@ export default function App() {
   const [logs, setLogs] = useState<LogItem[]>([]);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const workspaceContentRef = useRef<HTMLDivElement>(null);
+  const selectAllAlbumsRef = useRef<HTMLInputElement>(null);
 
   // Inline Metadata Editor Modal State
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
@@ -316,6 +318,31 @@ export default function App() {
     }
   }, [logs, activeTab]);
 
+  const allAlbumsSelected = albums.length > 0 && albums.every(album => selectedAlbumIds.has(album.id));
+  const someAlbumsSelected = albums.some(album => selectedAlbumIds.has(album.id));
+
+  useEffect(() => {
+    if (selectAllAlbumsRef.current) {
+      selectAllAlbumsRef.current.indeterminate = someAlbumsSelected && !allAlbumsSelected;
+    }
+  }, [allAlbumsSelected, someAlbumsSelected]);
+
+  const toggleAlbumSelection = (albumId: string) => {
+    setSelectedAlbumIds(previous => {
+      const next = new Set(previous);
+      if (next.has(albumId)) {
+        next.delete(albumId);
+      } else {
+        next.add(albumId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllAlbums = () => {
+    setSelectedAlbumIds(allAlbumsSelected ? new Set() : new Set(albums.map(album => album.id)));
+  };
+
   // Actions
   const handleSelectRoot = async () => {
     const folder = await window.api.selectFolder();
@@ -347,6 +374,7 @@ export default function App() {
     try {
       const results = await window.api.scanAlbums(rootFolder, settings.scanRecursive);
       setAlbums(results);
+      setSelectedAlbumIds(new Set());
       if (results.length > 0) {
         setSelectedAlbumId(results[0].id);
       } else {
@@ -378,11 +406,10 @@ export default function App() {
     }
   };
 
-  // Single Album Compile trigger
+  // Selected albums compile trigger
   const handleRenderSelected = async () => {
-    if (!selectedAlbumId) return;
-    const album = albums.find(a => a.id === selectedAlbumId);
-    if (!album) return;
+    const selectedAlbums = albums.filter(album => selectedAlbumIds.has(album.id));
+    if (selectedAlbums.length === 0) return;
 
     if (!settings.outputFolder) {
       alert('Please select an output folder in settings first!');
@@ -393,7 +420,7 @@ export default function App() {
     try {
       setActiveTab('queue');
       setIsQueueRunning(true);
-      await window.api.renderAlbum(album.id, settings);
+      await window.api.renderAll(selectedAlbums, settings);
     } catch (err) {
       console.error(err);
     }
@@ -590,8 +617,8 @@ export default function App() {
         <div className="top-bar-actions">
           {activeTab === 'library' && albums.length > 0 && (
             <>
-              <button className="btn btn-secondary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleRenderSelected} disabled={!selectedAlbumId || isQueueRunning}>
-                Render Selected
+              <button className="btn btn-secondary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleRenderSelected} disabled={selectedAlbumIds.size === 0 || isQueueRunning}>
+                Render Selected ({selectedAlbumIds.size})
               </button>
               <button className="btn btn-primary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleRenderAll} disabled={isQueueRunning}>
                 Render All ({albums.length})
@@ -684,25 +711,46 @@ export default function App() {
                 {/* Scanned Albums table */}
                 {albums.length > 0 ? (
                   <div className="table-container">
-                    <table className="album-table">
+                    <table className="album-table library-table">
                       <thead>
                         <tr>
+                          <th className="selection-column">
+                            <input
+                              ref={selectAllAlbumsRef}
+                              type="checkbox"
+                              className="table-select-checkbox"
+                              checked={allAlbumsSelected}
+                              onChange={toggleSelectAllAlbums}
+                              aria-label="Select all albums"
+                              title="Select all albums"
+                            />
+                          </th>
                           <th>Album Folder Name</th>
                           <th>Year</th>
                           <th>Tracks</th>
                           <th>Cover Art</th>
                           <th>Total duration</th>
                           <th>Process status</th>
-                          <th style={{ textAlign: 'right' }}>Actions</th>
+                          <th className="actions-column" style={{ textAlign: 'right' }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {albums.map((album) => (
                           <tr 
                             key={album.id}
-                            className={selectedAlbumId === album.id ? 'selected' : ''}
+                            className={`${selectedAlbumId === album.id ? 'selected' : ''} ${selectedAlbumIds.has(album.id) ? 'render-selected' : ''}`.trim()}
                             onClick={() => setSelectedAlbumId(album.id)}
                           >
+                            <td className="selection-column">
+                              <input
+                                type="checkbox"
+                                className="table-select-checkbox"
+                                checked={selectedAlbumIds.has(album.id)}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={() => toggleAlbumSelection(album.id)}
+                                aria-label={`Select ${album.albumName} for rendering`}
+                              />
+                            </td>
                             <td className="album-title-cell">{album.albumName}</td>
                             <td>{album.year}</td>
                             <td>{album.tracksCount} tracks</td>
@@ -724,7 +772,7 @@ export default function App() {
                                 </div>
                               )}
                             </td>
-                            <td style={{ textAlign: 'right' }}>
+                            <td className="actions-column" style={{ textAlign: 'right' }}>
                               <button 
                                 className="btn btn-secondary table-action-btn" 
                                 onClick={(e) => {

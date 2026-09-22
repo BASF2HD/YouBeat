@@ -3,6 +3,8 @@ import { writeFile } from 'node:fs/promises';
 const outputPath = process.argv[2] ?? '.design-qa/albumforge-studio.png';
 const enableJewelCase = process.argv.includes('--enable-jewel-case');
 const openSettings = process.argv.includes('--settings');
+const selectCountArg = process.argv.find(argument => argument.startsWith('--select-count='));
+const selectCount = selectCountArg ? Number(selectCountArg.split('=')[1]) : 0;
 const targets = await fetch('http://127.0.0.1:9222/json/list').then(response => response.json());
 const target = targets.find(item => item.title === 'AlbumForge Studio');
 
@@ -64,6 +66,22 @@ if (openSettings) {
     expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Settings'))?.click()`,
   });
   await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+if (selectCount > 0) {
+  await send('Runtime.evaluate', {
+    expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Library'))?.click()`,
+  });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await send('Runtime.evaluate', {
+    expression: `(() => {
+      const checkboxes = Array.from(document.querySelectorAll('.library-table tbody .table-select-checkbox'));
+      checkboxes.slice(0, ${selectCount}).forEach((checkbox) => {
+        if (!checkbox.checked) checkbox.click();
+      });
+    })()`,
+  });
+  await new Promise(resolve => setTimeout(resolve, 100));
 }
 
 const screenshot = await send('Page.captureScreenshot', {

@@ -484,13 +484,14 @@ body.preview-resizing .workspace-content {
   z-index: 10;
 }
 
-.album-table th:nth-child(1) { width: 25%; }
-.album-table th:nth-child(2) { width: 7%; }
-.album-table th:nth-child(3) { width: 9%; }
-.album-table th:nth-child(4) { width: 11%; }
-.album-table th:nth-child(5) { width: 14%; }
-.album-table th:nth-child(6) { width: 18%; }
-.album-table th:nth-child(7) { width: 10%; }
+.library-table th:nth-child(1) { width: 34px; }
+.library-table th:nth-child(2) { width: 25%; }
+.library-table th:nth-child(3) { width: 7%; }
+.library-table th:nth-child(4) { width: 9%; }
+.library-table th:nth-child(5) { width: 11%; }
+.library-table th:nth-child(6) { width: 14%; }
+.library-table th:nth-child(7) { width: 18%; }
+.library-table th:nth-child(8) { width: 82px; }
 
 .album-table td {
   height: 30px;
@@ -515,6 +516,34 @@ body.preview-resizing .workspace-content {
 
 .album-table tbody tr.selected {
   background-color: var(--table-row-selected);
+}
+
+.album-table tbody tr.render-selected:not(.selected) {
+  background-color: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+}
+
+.album-table .selection-column {
+  width: 34px;
+  min-width: 34px;
+  padding-left: 8px;
+  padding-right: 6px;
+  text-align: center;
+  overflow: visible;
+}
+
+.library-table .actions-column {
+  width: 82px;
+  padding-left: 4px;
+  padding-right: 8px;
+}
+
+.table-select-checkbox {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin: 0 auto;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
 }
 
 .album-title-cell {
@@ -774,7 +803,7 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-cover-art-container.jewel-case-enabled {
-  aspect-ratio: 1344 / 1170;
+  aspect-ratio: 3295 / 3008;
   background: transparent;
 }
 
@@ -782,10 +811,10 @@ body.preview-resizing .workspace-content {
 .preview-cover-art-container.jewel-case-enabled .preview-cover-placeholder {
   position: absolute;
   z-index: 1;
-  top: 4%;
-  left: 10.8%;
-  width: 86.5%;
-  height: 92%;
+  top: 2.6%;
+  left: 10.6%;
+  width: 87%;
+  height: 95%;
   object-fit: cover;
 }
 
