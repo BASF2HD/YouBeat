@@ -1,10 +1,17 @@
 const { app } = require('electron');
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { generateSlidesForAlbum } = require('../dist/main/rendererService.js');
-const { testFfmpegPath } = require('../dist/main/ffmpegService.js');
+const { testFfmpegPath, resolveFfmpegPath, renderAlbumVideo, resolveVideoCodecArgs } = require('../dist/main/ffmpegService.js');
 
 const outputDir = path.join(__dirname, '..', '.design-qa', 'slide-render-smoke');
+const renderVideo = process.argv.includes('--video');
+const forceCpu = process.argv.includes('--cpu');
+
+// Keep Electron alive after the offscreen slide window closes so the video
+// renderer can finish its separate FFmpeg process checks.
+app.on('window-all-closed', () => {});
 
 const album = {
   id: 'smoke-test',
@@ -18,10 +25,10 @@ const album = {
     trackNumber: 1,
     title: 'Frame Decode Test',
     artist: 'AlbumForge Studio',
-    duration: 30,
+    duration: 2.4,
   }],
   tracksCount: 1,
-  totalDuration: 30,
+  totalDuration: 2.4,
   coverFound: false,
   coverPath: null,
   status: 'idle',
@@ -43,7 +50,7 @@ const settings = {
   scanRecursive: false,
   ffmpegPath: 'ffmpeg',
   outputFolder: outputDir,
-  videoCodec: 'auto',
+  videoCodec: forceCpu ? 'libx264' : 'auto',
   skipExisting: true,
 };
 
@@ -51,12 +58,51 @@ app.whenReady().then(async () => {
   fs.mkdirSync(outputDir, { recursive: true });
   const ffmpegVersion = await testFfmpegPath('ffmpeg');
   console.log(`FFmpeg: ${ffmpegVersion}`);
+  if (renderVideo) {
+    const ffmpeg = resolveFfmpegPath('ffmpeg');
+    const trackDurations = [2.4, 2.8];
+    album.tracks = trackDurations.map((duration, index) => {
+      const filePath = path.join(outputDir, `smoke_${index}.wav`);
+      const result = spawnSync(ffmpeg, [
+        '-y', '-hide_banner', '-loglevel', 'error',
+        '-f', 'lavfi', '-i', `sine=frequency=${440 + index * 220}:duration=${duration}`,
+        '-ar', '44100', '-ac', '2', filePath
+      ], { stdio: 'inherit' });
+      if (result.status !== 0) throw new Error(`Failed to create test audio ${index}`);
+      return {
+        ...album.tracks[0],
+        id: `smoke-track-${index}`,
+        fileName: path.basename(filePath),
+        filePath,
+        trackNumber: index + 1,
+        title: `Frame Decode Test ${index + 1}`,
+        duration,
+      };
+    });
+    album.tracksCount = album.tracks.length;
+    album.totalDuration = trackDurations.reduce((sum, duration) => sum + duration, 0);
+    const encoder = await resolveVideoCodecArgs('ffmpeg', settings.videoCodec, settings.exportQuality);
+    console.log(`Encoder: ${encoder.codecName}`);
+  }
   const slides = await generateSlidesForAlbum(album, settings, outputDir);
   const slide = slides[0];
   if (!slide || !fs.existsSync(slide) || fs.statSync(slide).size === 0) {
     throw new Error('Slide rendering did not produce a PNG.');
   }
   console.log(`${slide} (${fs.statSync(slide).size} bytes)`);
+  if (renderVideo) {
+    const result = await renderAlbumVideo(album, { ...settings, skipExisting: false }, slides, outputDir, () => {}, log => {
+      if (log.type === 'error') console.error(log.text);
+    });
+    if (!fs.existsSync(result.videoPath) || fs.statSync(result.videoPath).size === 0) {
+      throw new Error('The video renderer did not produce an MP4.');
+    }
+    const inspect = spawnSync(resolveFfmpegPath('ffmpeg'), ['-hide_banner', '-i', result.videoPath, '-f', 'null', '-'], { encoding: 'utf8' });
+    if (inspect.status !== 0 || !inspect.stderr.includes('h264') || !inspect.stderr.includes('aac')) {
+      throw new Error(`The rendered MP4 did not decode correctly: ${inspect.stderr}`);
+    }
+    console.log(`${result.videoPath} (${fs.statSync(result.videoPath).size} bytes)`);
+  }
   app.quit();
 }).catch((error) => {
   console.error(error);

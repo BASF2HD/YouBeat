@@ -13,9 +13,10 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
   - Generates a highlighted vertical listing of song names and singers (in italic) on the right side.
   - Dynamically calculates font sizing based on song count to prevent screen overflow.
   - If an album contains more than 12 tracks, the layout automatically shifts to a moving viewport that scrolls to center around the active playing track.
-- **Zero-Loss Ultra-Fast FFmpeg Assembly**:
-  1. For each track, compiles a highly-optimized intermediate H.264 still-image MP4 segment matching the exact duration of the track.
-  2. Normalizes all audio formats to standard AAC 44,100 Hz stereo, which allows FFmpeg's concat copy demuxer to instantly stitch the final album video together in **seconds** with zero audio/video quality degradation and zero re-encoding!
+- **Efficient FFmpeg Assembly**:
+  1. Encodes one second of each track's still slide to H.264, using Apple VideoToolbox on macOS when available.
+  2. Copies that short video clip for the track's duration while encoding audio to AAC 44,100 Hz stereo. This avoids encoding thousands of identical frames.
+  3. Joins the finished track segments without another video encode.
 - **YouTube Metadata Exporters**:
   - Automatically exports a `Description.txt` containing cumulative timings (`00:00 Track 1 - Singer`, `04:32 Track 2 - Singer`).
   - Automatically exports the first slide layout as a high-quality `Thumbnail.jpg`.
@@ -91,6 +92,6 @@ npm run pack
 
 ## Technical Performance Optimization Notes
 
-- **Offscreen Capture Repaint Timing**: The slide generator utilizes `webContents.capturePage()` inside a hidden BrowserWindow. A custom `350ms` timeout is integrated to allow large image buffers (cover arts) to fully paint to Chromium before the capture, avoiding blank slides on slower machines.
+- **Offscreen Capture Repaint Timing**: The slide generator waits for images to load before capturing the hidden BrowserWindow, then allows a short paint delay.
 - **FFmpeg Concat Stream Alignment**: The intermediate segment encoder forces standard audio metrics (`-ar 44100 -ac 2 -b:a 192k`). This avoids FFmpeg throwing channel mismatches or sample-rate differences during concatenation, allowing the copy demuxer to run instantly.
 - **Garbage Cleanup**: All intermediate PNG slides and segment `.mp4` chunks generated during render processes are completely deleted upon compile completion or cancellation, keeping disk footprint clean.

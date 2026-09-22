@@ -77,10 +77,13 @@ export function testEncoderSupport(ffmpegPath: string, encoder: string): Promise
   return new Promise((resolve) => {
     const resolved = resolveFfmpegPath(ffmpegPath);
     const proc = spawn(resolved, [
-      '-y',
+      '-hide_banner', '-loglevel', 'error', '-nostdin',
       '-f', 'lavfi',
-      '-i', 'testsrc=duration=0.04:size=64x64:rate=25',
+      '-i', 'testsrc=duration=0.2:size=640x360:rate=30',
+      '-vf', 'format=yuv420p',
       '-c:v', encoder,
+      ...(encoder === 'h264_videotoolbox' ? ['-allow_sw', '0'] : []),
+      '-frames:v', '3',
       '-f', 'null',
       '-'
     ]);
@@ -94,9 +97,13 @@ export function testEncoderSupport(ffmpegPath: string, encoder: string): Promise
  */
 export async function getAvailableHwEncoders(ffmpegPath: string): Promise<Array<{ id: string; name: string; available: boolean }>> {
   const encoders = [
-    { id: 'h264_qsv', name: 'Intel Quick Sync (h264_qsv)' },
-    { id: 'h264_nvenc', name: 'NVIDIA NVENC (h264_nvenc)' },
-    { id: 'h264_amf', name: 'AMD AMF (h264_amf)' },
+    ...(process.platform === 'darwin'
+      ? [{ id: 'h264_videotoolbox', name: 'Apple VideoToolbox (hardware H.264)' }]
+      : [
+          { id: 'h264_qsv', name: 'Intel Quick Sync (h264_qsv)' },
+          { id: 'h264_nvenc', name: 'NVIDIA NVENC (h264_nvenc)' },
+          { id: 'h264_amf', name: 'AMD AMF (h264_amf)' }
+        ]),
     { id: 'libx264', name: 'CPU Software (libx264)' }
   ];
 
@@ -122,9 +129,20 @@ export async function resolveVideoCodecArgs(
 ): Promise<{ codecName: string; codecArgs: string[] }> {
   let chosenCodec = preferredCodec || 'auto';
 
+  // An encoder choice saved on another computer should not force a Mac into
+  // software mode simply because that hardware family does not exist here.
+  if (process.platform === 'darwin' && !['auto', 'h264_videotoolbox', 'libx264'].includes(chosenCodec)) {
+    chosenCodec = 'auto';
+  }
+
   if (chosenCodec === 'auto') {
-    // Try QSV first (standard on Intel Iris Xe / Core CPUs), then NVENC, then AMF, then libx264
-    if (await testEncoderSupport(ffmpegPath, 'h264_qsv')) {
+    // Apple Silicon uses VideoToolbox's dedicated media engine. Other platforms
+    // keep their existing hardware probes, with software encoding as a fallback.
+    if (process.platform === 'darwin') {
+      chosenCodec = await testEncoderSupport(ffmpegPath, 'h264_videotoolbox')
+        ? 'h264_videotoolbox'
+        : 'libx264';
+    } else if (await testEncoderSupport(ffmpegPath, 'h264_qsv')) {
       chosenCodec = 'h264_qsv';
     } else if (await testEncoderSupport(ffmpegPath, 'h264_nvenc')) {
       chosenCodec = 'h264_nvenc';
@@ -142,7 +160,13 @@ export async function resolveVideoCodecArgs(
   }
 
   // Configure quality parameters based on selected codec
-  if (chosenCodec === 'h264_qsv') {
+  if (chosenCodec === 'h264_videotoolbox') {
+    const bitrate = exportQuality === 'high' ? '10M' : exportQuality === 'small' ? '3M' : '6M';
+    return {
+      codecName: 'Apple VideoToolbox (hardware H.264)',
+      codecArgs: ['-c:v', 'h264_videotoolbox', '-allow_sw', '0', '-b:v', bitrate]
+    };
+  } else if (chosenCodec === 'h264_qsv') {
     // Intel QuickSync uses global_quality (1-51, lower is better)
     const q = exportQuality === 'high' ? '20' : exportQuality === 'small' ? '28' : '23';
     return {
@@ -320,7 +344,7 @@ export async function renderAlbumVideo(
     } catch (e) {}
   }
 
-  // Resolve video encoder (Hardware Acceleration / QuickSync / NVENC / CPU)
+  // Resolve the encoder once for all still-image clips in this album.
   const { codecName, codecArgs } = await resolveVideoCodecArgs(
     ffmpeg,
     settings.videoCodec,
@@ -328,15 +352,16 @@ export async function renderAlbumVideo(
   );
   log(`Video Encoding Engine: ${codecName}`, 'info');
 
-  const [width, height] = settings.resolution.split('x').map(Number);
-  const scaleFilter = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p`;
-
-  // Step 1: Render intermediate MP4 segment for each track
+  // Slides are already captured at the exact output resolution. Encode one
+  // second of each still image, then stream-copy that clip for the song's
+  // duration. This preserves the chosen frame rate without re-encoding the
+  // same image thousands of times or scaling every repeated frame on the CPU.
   const segmentPaths: string[] = [];
 
   for (let i = 0; i < numTracks; i++) {
     const track = album.tracks[i];
     const slide = slidePaths[i];
+    const stillClipPath = path.join(tempDir, `still_${i}.mp4`);
     const segmentPath = path.join(tempDir, `track_${i}.mp4`);
     
     log(`Rendering Track segment ${i + 1}/${numTracks}: "${track.title}"`, 'info');
@@ -345,32 +370,34 @@ export async function renderAlbumVideo(
     // If zero, we assign a default fallback duration (e.g. 5 seconds) to prevent FFmpeg failing
     const duration = track.duration > 0 ? track.duration : 5;
 
-    // FFmpeg arguments for encoding an image slide + audio file:
-    // -loop 1: Loop the single input image
-    // -r: set video frame rate (FPS)
-    // -t: Limit output video duration to match exactly the audio length
-    // -map 0:v:0: Explicitly use slide image as video (ignores embedded cover art in audio file)
-    // -map 1:a:0: Explicitly use track audio as audio stream
-    // -vf: Force even video dimensions & yuv420p to prevent encoder dimension errors
-    // ...codecArgs: Hardware acceleration or CPU libx264
-    // -c:a aac: AAC audio codec
-    // -ar 44100 -ac 2: Force sample rate and channels to match identically (vital for concat copy!)
-    // -shortest: Ends the segment as soon as the shortest stream ends
-    const args = [
+    const stillArgs = [
       '-y',
       '-loop', '1',
-      '-r', String(settings.fps),
+      '-framerate', String(settings.fps),
       '-i', slide,
+      '-map', '0:v:0',
+      '-t', '1',
+      '-an',
+      '-pix_fmt', 'yuv420p',
+      '-g', String(settings.fps),
+      '-bf', '0',
+      ...codecArgs,
+      stillClipPath
+    ];
+    await runFfmpegCmd(ffmpeg, stillArgs, (text) => log(text, 'ffmpeg'));
+
+    const args = [
+      '-y',
+      '-stream_loop', '-1',
+      '-i', stillClipPath,
       '-i', track.filePath,
       '-map', '0:v:0',
       '-map', '1:a:0',
-      '-vf', scaleFilter,
-      ...codecArgs,
+      '-c:v', 'copy',
       '-c:a', 'aac',
       '-ar', '44100',
       '-ac', '2',
       '-b:a', '192k',
-      '-pix_fmt', 'yuv420p',
       '-t', String(duration),
       '-shortest',
       segmentPath
@@ -388,6 +415,7 @@ export async function renderAlbumVideo(
     });
 
     segmentPaths.push(segmentPath);
+    onAlbumProgress(Math.floor(((i + 1) / numTracks) * 85));
   }
 
   // Step 2: Concatenate segments using the concat demuxer (extremely fast, zero copy)

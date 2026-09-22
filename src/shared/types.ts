@@ -40,7 +40,7 @@ export interface RenderSettings {
   scanRecursive: boolean;
   ffmpegPath: string;
   outputFolder: string;
-  videoCodec: 'auto' | 'h264_qsv' | 'h264_nvenc' | 'h264_amf' | 'libx264';
+  videoCodec: 'auto' | 'h264_videotoolbox' | 'h264_qsv' | 'h264_nvenc' | 'h264_amf' | 'libx264';
   skipExisting: boolean;
 }
 
@@ -52,6 +52,7 @@ export interface LogItem {
 }
 
 export interface IPCAPI {
+  platform: string;
   selectFolder: () => Promise<string | null>;
   copyText: (text: string) => Promise<void>;
   scanAlbums: (rootFolder: string, recursive: boolean) => Promise<Album[]>;

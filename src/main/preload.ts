@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { Album, RenderSettings, LogItem } from '../shared/types';
 
 contextBridge.exposeInMainWorld('api', {
+  platform: process.platform,
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   copyText: (text: string) => ipcRenderer.invoke('copy-text', text),
   scanAlbums: (rootFolder: string, recursive: boolean) => ipcRenderer.invoke('scan-albums', rootFolder, recursive),

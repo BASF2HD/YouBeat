@@ -547,6 +547,10 @@ export default function App() {
 
   // Active elements
   const selectedAlbum = albums.find(a => a.id === selectedAlbumId) || null;
+  const selectedVideoCodec = window.api.platform === 'darwin' &&
+    !['auto', 'h264_videotoolbox', 'libx264'].includes(settings.videoCodec)
+    ? 'auto'
+    : settings.videoCodec || 'auto';
 
   // Render stats
   const totalDurationStr = (secs: number) => {
@@ -916,7 +920,7 @@ export default function App() {
                       placeholder="ffmpeg (uses bundled copy)"
                     />
                     <button className="btn btn-secondary" onClick={handleVerifyFfmpeg}>Test Binary</button>
-                    <button className="btn btn-secondary" onClick={handleDetectGpu}>Check GPU</button>
+                    <button className="btn btn-secondary" onClick={handleDetectGpu}>Check Encoders</button>
                   </div>
                   <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Leave as 'ffmpeg' to use the copy bundled with AlbumForge. Enter a full path only to override it.</span>
                 </div>
@@ -924,16 +928,17 @@ export default function App() {
                 <div className="settings-section-title">Video encoding parameters</div>
                 <div className="settings-grid">
                   <div className="input-group">
-                    <span className="input-label">Hardware Acceleration (GPU)</span>
+                    <span className="input-label">Video encoding engine</span>
                     <select 
                       className="select-input"
-                      value={settings.videoCodec || 'auto'}
+                      value={selectedVideoCodec}
                       onChange={(e) => updateSettings({ videoCodec: e.target.value as any })}
                     >
-                      <option value="auto">⚡ Auto-Detect Best (Recommended)</option>
-                      <option value="h264_qsv">Intel Quick Sync (h264_qsv)</option>
-                      <option value="h264_nvenc">NVIDIA NVENC (h264_nvenc)</option>
-                      <option value="h264_amf">AMD AMF (h264_amf)</option>
+                      <option value="auto">Auto — hardware when available</option>
+                      {window.api.platform === 'darwin' && <option value="h264_videotoolbox">Apple VideoToolbox (hardware)</option>}
+                      {window.api.platform !== 'darwin' && <option value="h264_qsv">Intel Quick Sync (h264_qsv)</option>}
+                      {window.api.platform !== 'darwin' && <option value="h264_nvenc">NVIDIA NVENC (h264_nvenc)</option>}
+                      {window.api.platform !== 'darwin' && <option value="h264_amf">AMD AMF (h264_amf)</option>}
                       <option value="libx264">CPU Software (libx264)</option>
                     </select>
                   </div>
