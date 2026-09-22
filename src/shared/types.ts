@@ -28,7 +28,6 @@ export interface Album {
 
 export interface RenderSettings {
   resolution: '1920x1080' | '1280x720';
-  fps: number;
   backgroundColor: string;
   fontFamily: string;
   activeColor: string;

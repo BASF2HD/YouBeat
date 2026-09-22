@@ -79,7 +79,7 @@ export function testEncoderSupport(ffmpegPath: string, encoder: string): Promise
     const proc = spawn(resolved, [
       '-hide_banner', '-loglevel', 'error', '-nostdin',
       '-f', 'lavfi',
-      '-i', 'testsrc=duration=0.2:size=640x360:rate=30',
+      '-i', 'testsrc=duration=3:size=640x360:rate=1',
       '-vf', 'format=yuv420p',
       '-c:v', encoder,
       ...(encoder === 'h264_videotoolbox' ? ['-allow_sw', '0'] : []),
@@ -344,7 +344,7 @@ export async function renderAlbumVideo(
     } catch (e) {}
   }
 
-  // Resolve the encoder once for all still-image clips in this album.
+  // Resolve the encoder once for all still-image tracks in this album.
   const { codecName, codecArgs } = await resolveVideoCodecArgs(
     ffmpeg,
     settings.videoCodec,
@@ -352,16 +352,15 @@ export async function renderAlbumVideo(
   );
   log(`Video Encoding Engine: ${codecName}`, 'info');
 
-  // Slides are already captured at the exact output resolution. Encode one
-  // second of each still image, then stream-copy that clip for the song's
-  // duration. This preserves the chosen frame rate without re-encoding the
-  // same image thousands of times or scaling every repeated frame on the CPU.
+  // A slide does not change during a track. Encode it at about one frame per second
+  // for the track's full duration so inter-frame compression can work across
+  // the song. Repeating a one-second H.264 clip instead repeats its keyframe
+  // every second and makes hour-long albums unnecessarily large.
   const segmentPaths: string[] = [];
 
   for (let i = 0; i < numTracks; i++) {
     const track = album.tracks[i];
     const slide = slidePaths[i];
-    const stillClipPath = path.join(tempDir, `still_${i}.mp4`);
     const segmentPath = path.join(tempDir, `track_${i}.mp4`);
     
     log(`Rendering Track segment ${i + 1}/${numTracks}: "${track.title}"`, 'info');
@@ -369,37 +368,29 @@ export async function renderAlbumVideo(
     // Handle duration edge case (e.g. metadata corrupt, zero length)
     // If zero, we assign a default fallback duration (e.g. 5 seconds) to prevent FFmpeg failing
     const duration = track.duration > 0 ? track.duration : 5;
-
-    const stillArgs = [
-      '-y',
-      '-loop', '1',
-      '-framerate', String(settings.fps),
-      '-i', slide,
-      '-map', '0:v:0',
-      '-t', '1',
-      '-an',
-      '-pix_fmt', 'yuv420p',
-      '-g', String(settings.fps),
-      '-bf', '0',
-      ...codecArgs,
-      stillClipPath
-    ];
-    await runFfmpegCmd(ffmpeg, stillArgs, (text) => log(text, 'ffmpeg'));
+    // Give fractional-length tracks an integral number of frames whose packet
+    // durations add up to the track duration. A fixed 1 fps would round each
+    // segment up to the next second and shift later slides out of sync.
+    const frameCount = Math.max(1, Math.ceil(duration));
+    const durationMs = Math.max(1, Math.round(duration * 1000));
+    const stillFrameRate = `${frameCount * 1000}/${durationMs}`;
 
     const args = [
       '-y',
-      '-stream_loop', '-1',
-      '-i', stillClipPath,
+      '-loop', '1',
+      '-framerate', stillFrameRate,
+      '-i', slide,
       '-i', track.filePath,
       '-map', '0:v:0',
       '-map', '1:a:0',
-      '-c:v', 'copy',
+      '-pix_fmt', 'yuv420p',
+      ...codecArgs,
       '-c:a', 'aac',
       '-ar', '44100',
       '-ac', '2',
       '-b:a', '192k',
       '-t', String(duration),
-      '-shortest',
+      '-video_track_timescale', '90000',
       segmentPath
     ];
 

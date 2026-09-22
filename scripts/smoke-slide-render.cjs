@@ -6,7 +6,8 @@ const { generateSlidesForAlbum } = require('../dist/main/rendererService.js');
 const { testFfmpegPath, resolveFfmpegPath, renderAlbumVideo, resolveVideoCodecArgs } = require('../dist/main/ffmpegService.js');
 
 const outputDir = path.join(__dirname, '..', '.design-qa', 'slide-render-smoke');
-const renderVideo = process.argv.includes('--video');
+const longVideo = process.argv.includes('--long-video');
+const renderVideo = process.argv.includes('--video') || longVideo;
 const forceCpu = process.argv.includes('--cpu');
 
 // Keep Electron alive after the offscreen slide window closes so the video
@@ -37,7 +38,6 @@ const album = {
 
 const settings = {
   resolution: '1280x720',
-  fps: 30,
   backgroundColor: '#000000',
   fontFamily: 'Arial',
   activeColor: '#ffffff',
@@ -60,7 +60,7 @@ app.whenReady().then(async () => {
   console.log(`FFmpeg: ${ffmpegVersion}`);
   if (renderVideo) {
     const ffmpeg = resolveFfmpegPath('ffmpeg');
-    const trackDurations = [2.4, 2.8];
+    const trackDurations = longVideo ? [120] : [2.4, 2.8];
     album.tracks = trackDurations.map((duration, index) => {
       const filePath = path.join(outputDir, `smoke_${index}.wav`);
       const result = spawnSync(ffmpeg, [
@@ -101,7 +101,18 @@ app.whenReady().then(async () => {
     if (inspect.status !== 0 || !inspect.stderr.includes('h264') || !inspect.stderr.includes('aac')) {
       throw new Error(`The rendered MP4 did not decode correctly: ${inspect.stderr}`);
     }
-    console.log(`${result.videoPath} (${fs.statSync(result.videoPath).size} bytes)`);
+    const durationMatch = inspect.stderr.match(/Duration: (\d+):(\d+):([\d.]+)/);
+    const actualDuration = durationMatch
+      ? Number(durationMatch[1]) * 3600 + Number(durationMatch[2]) * 60 + Number(durationMatch[3])
+      : NaN;
+    if (!Number.isFinite(actualDuration) || Math.abs(actualDuration - album.totalDuration) > 0.1) {
+      throw new Error(`Unexpected output duration: ${actualDuration}s instead of ${album.totalDuration}s`);
+    }
+    const outputSize = fs.statSync(result.videoPath).size;
+    if (longVideo && (outputSize > 20 * 1024 * 1024 || !inspect.stderr.includes('1 fps'))) {
+      throw new Error(`Still-image video was not compact: ${outputSize} bytes`);
+    }
+    console.log(`${result.videoPath} (${outputSize} bytes, ${actualDuration}s)`);
   }
   app.quit();
 }).catch((error) => {

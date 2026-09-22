@@ -103,7 +103,6 @@ export default function App() {
   // General App settings
   const [settings, setSettings] = useState<RenderSettings>({
     resolution: '1920x1080',
-    fps: 30,
     backgroundColor: '#000000',
     fontFamily: 'Outfit',
     activeColor: '#ffffff',
@@ -248,7 +247,7 @@ export default function App() {
     const savedSettings = localStorage.getItem('render_settings');
     if (savedSettings) {
       try {
-        const parsed = JSON.parse(savedSettings);
+        const { fps: _obsoleteFps, ...parsed } = JSON.parse(savedSettings);
         setSettings(prev => ({ ...prev, ...parsed }));
       } catch (err) {
         console.error('Failed to parse saved settings:', err);
@@ -978,16 +977,8 @@ export default function App() {
                     </select>
                   </div>
                   <div className="input-group">
-                    <span className="input-label">Frame rate (FPS)</span>
-                    <select 
-                      className="select-input"
-                      value={settings.fps}
-                      onChange={(e) => updateSettings({ fps: Number(e.target.value) })}
-                    >
-                      <option value="30">30 Frames per second (Standard)</option>
-                      <option value="24">24 Frames per second (Cinema)</option>
-                      <option value="15">15 Frames per second (Fast render)</option>
-                    </select>
+                    <span className="input-label">Frame rate</span>
+                    <span className="input-hint">About 1 fps · still slides stay crisp without encoding duplicate frames</span>
                   </div>
                   <div className="input-group">
                     <span className="input-label">Export quality</span>
@@ -1292,7 +1283,7 @@ export default function App() {
                           </div>
                           <div className="preview-stage-meta">
                             <span><i /> Layout preview</span>
-                            <span>{settings.resolution} · {settings.fps} fps</span>
+                            <span>{settings.resolution} · static slides</span>
                           </div>
                         </div>
                       )}

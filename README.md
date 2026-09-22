@@ -14,8 +14,8 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
   - Dynamically calculates font sizing based on song count to prevent screen overflow.
   - If an album contains more than 12 tracks, the layout automatically shifts to a moving viewport that scrolls to center around the active playing track.
 - **Efficient FFmpeg Assembly**:
-  1. Encodes one second of each track's still slide to H.264, using Apple VideoToolbox on macOS when available.
-  2. Copies that short video clip for the track's duration while encoding audio to AAC 44,100 Hz stereo. This avoids encoding thousands of identical frames.
+  1. Encodes each track's still slide at about one frame per second to H.264, using Apple VideoToolbox on macOS when available. Inter-frame compression keeps long album files compact.
+  2. Encodes the matching audio to AAC 44,100 Hz stereo without duplicating 30 identical video frames each second.
   3. Joins the finished track segments without another video encode.
 - **YouTube Metadata Exporters**:
   - Automatically exports a `Description.txt` containing cumulative timings (`00:00 Track 1 - Singer`, `04:32 Track 2 - Singer`).
