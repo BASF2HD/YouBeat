@@ -53,6 +53,7 @@ export interface LogItem {
 
 export interface IPCAPI {
   selectFolder: () => Promise<string | null>;
+  copyText: (text: string) => Promise<void>;
   scanAlbums: (rootFolder: string, recursive: boolean) => Promise<Album[]>;
   saveAlbumMetadata: (albumId: string, updatedAlbum: Album) => Promise<boolean>;
   renderAlbum: (albumId: string, settings: RenderSettings) => Promise<void>;

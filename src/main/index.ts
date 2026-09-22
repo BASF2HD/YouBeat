@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Album, RenderSettings } from '../shared/types';
@@ -97,6 +97,10 @@ ipcMain.handle('select-folder', async () => {
     return null;
   }
   return result.filePaths[0];
+});
+
+ipcMain.handle('copy-text', (_event, text: string): void => {
+  clipboard.writeText(text);
 });
 
 ipcMain.handle('scan-albums', async (_event, rootFolder: string, recursive: boolean): Promise<Album[]> => {

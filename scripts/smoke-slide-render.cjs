@@ -2,6 +2,7 @@ const { app } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { generateSlidesForAlbum } = require('../dist/main/rendererService.js');
+const { testFfmpegPath } = require('../dist/main/ffmpegService.js');
 
 const outputDir = path.join(__dirname, '..', '.design-qa', 'slide-render-smoke');
 
@@ -48,6 +49,8 @@ const settings = {
 
 app.whenReady().then(async () => {
   fs.mkdirSync(outputDir, { recursive: true });
+  const ffmpegVersion = await testFfmpegPath('ffmpeg');
+  console.log(`FFmpeg: ${ffmpegVersion}`);
   const slides = await generateSlidesForAlbum(album, settings, outputDir);
   const slide = slides[0];
   if (!slide || !fs.existsSync(slide) || fs.statSync(slide).size === 0) {

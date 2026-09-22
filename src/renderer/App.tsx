@@ -133,6 +133,7 @@ export default function App() {
 
   // Logging state
   const [logs, setLogs] = useState<LogItem[]>([]);
+  const [logsCopied, setLogsCopied] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const workspaceContentRef = useRef<HTMLDivElement>(null);
   const selectAllAlbumsRef = useRef<HTMLInputElement>(null);
@@ -499,6 +500,14 @@ export default function App() {
     }
   };
 
+  const handleCopyLogs = async () => {
+    if (logs.length === 0) return;
+    const text = logs.map(log => `[${log.timestamp}] ${log.text}`).join('\n');
+    await window.api.copyText(text);
+    setLogsCopied(true);
+    window.setTimeout(() => setLogsCopied(false), 1500);
+  };
+
   // Metadata editor handlers
   const openMetadataEditor = (album: Album) => {
     // Clone to prevent direct state mutability
@@ -855,7 +864,12 @@ export default function App() {
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                   <h3 style={{ margin: 0 }}>Terminal output log</h3>
-                  <button className="btn btn-secondary" onClick={() => setLogs([])}>Clear Console</button>
+                  <div className="log-actions">
+                    <button className="btn btn-secondary" onClick={handleCopyLogs} disabled={logs.length === 0}>
+                      {logsCopied ? 'Copied' : 'Copy Logs'}
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => setLogs([])}>Clear Console</button>
+                  </div>
                 </div>
                 <div className="terminal-card">
                   {logs.length > 0 ? (
@@ -892,19 +906,19 @@ export default function App() {
                 </div>
 
                 <div className="input-group" style={{ marginBottom: '20px' }}>
-                  <span className="input-label">FFmpeg custom executable path</span>
+                    <span className="input-label">FFmpeg executable (optional override)</span>
                   <div className="picker-row">
                     <input 
                       type="text" 
                       className="text-input" 
                       value={settings.ffmpegPath} 
                       onChange={(e) => updateSettings({ ffmpegPath: e.target.value })}
-                      placeholder="ffmpeg (checks system PATH)" 
+                      placeholder="ffmpeg (uses bundled copy)"
                     />
                     <button className="btn btn-secondary" onClick={handleVerifyFfmpeg}>Test Binary</button>
                     <button className="btn btn-secondary" onClick={handleDetectGpu}>Check GPU</button>
                   </div>
-                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Leave as 'ffmpeg' if globally installed. Otherwise, select the path of your ffmpeg.exe.</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Leave as 'ffmpeg' to use the copy bundled with AlbumForge. Enter a full path only to override it.</span>
                 </div>
 
                 <div className="settings-section-title">Video encoding parameters</div>

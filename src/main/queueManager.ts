@@ -10,6 +10,8 @@ class QueueManager {
   private currentIndex = -1;
   private isPaused = false;
   private isRunning = false;
+  private batchCompletedCount = 0;
+  private batchFailedCount = 0;
   private currentSettings: RenderSettings | null = null;
   
   private mainWindow: BrowserWindow | null = null;
@@ -126,6 +128,8 @@ class QueueManager {
     this.isRunning = true;
     this.currentIndex = 0;
     this.isPaused = false;
+    this.batchCompletedCount = 0;
+    this.batchFailedCount = 0;
 
     this.log('Batch render queue started', 'info');
     this.processNext();
@@ -148,7 +152,14 @@ class QueueManager {
     
     if (nextIndex === -1) {
       // Completed all items in queue
-      this.log('All queue items processed successfully!', 'success');
+      if (this.batchFailedCount > 0) {
+        this.log(
+          `Queue finished: ${this.batchCompletedCount} completed, ${this.batchFailedCount} failed. Review the error logs above.`,
+          'error'
+        );
+      } else {
+        this.log(`All ${this.batchCompletedCount} queue item(s) processed successfully!`, 'success');
+      }
       this.isRunning = false;
       this.currentIndex = -1;
       this.emit('queue-finished');
@@ -199,6 +210,7 @@ class QueueManager {
       // Complete
       album.status = 'completed';
       album.progress = 100;
+      this.batchCompletedCount++;
       this.emit('album-updated', album);
       this.log(`Album rendering succeeded: "${album.albumName}". Saved to: ${results.albumOutputDir}`, 'success');
 
@@ -206,6 +218,7 @@ class QueueManager {
       // Failed
       album.status = 'failed';
       album.error = err.message;
+      this.batchFailedCount++;
       this.emit('album-updated', album);
       this.log(`Rendering failed for album: "${album.albumName}". Error: ${err.message}`, 'error');
     } finally {

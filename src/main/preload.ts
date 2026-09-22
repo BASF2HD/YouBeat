@@ -3,6 +3,7 @@ import { Album, RenderSettings, LogItem } from '../shared/types';
 
 contextBridge.exposeInMainWorld('api', {
   selectFolder: () => ipcRenderer.invoke('select-folder'),
+  copyText: (text: string) => ipcRenderer.invoke('copy-text', text),
   scanAlbums: (rootFolder: string, recursive: boolean) => ipcRenderer.invoke('scan-albums', rootFolder, recursive),
   saveAlbumMetadata: (albumId: string, updatedAlbum: Album) => ipcRenderer.invoke('save-album-metadata', albumId, updatedAlbum),
   renderAlbum: (albumId: string, settings: RenderSettings) => ipcRenderer.invoke('render-album', albumId, settings),

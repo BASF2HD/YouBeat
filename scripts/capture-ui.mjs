@@ -3,6 +3,8 @@ import { writeFile } from 'node:fs/promises';
 const outputPath = process.argv[2] ?? '.design-qa/albumforge-studio.png';
 const enableJewelCase = process.argv.includes('--enable-jewel-case');
 const openSettings = process.argv.includes('--settings');
+const openLogs = process.argv.includes('--logs');
+const verifyFfmpeg = process.argv.includes('--verify-ffmpeg');
 const selectCountArg = process.argv.find(argument => argument.startsWith('--select-count='));
 const selectCount = selectCountArg ? Number(selectCountArg.split('=')[1]) : 0;
 const targets = await fetch('http://127.0.0.1:9222/json/list').then(response => response.json());
@@ -66,6 +68,22 @@ if (openSettings) {
     expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Settings'))?.click()`,
   });
   await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+if (openLogs) {
+  await send('Runtime.evaluate', {
+    expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Logs'))?.click()`,
+  });
+  await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+if (verifyFfmpeg) {
+  const result = await send('Runtime.evaluate', {
+    expression: `window.api.getFfmpegVersion('ffmpeg')`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  console.log(result.result.value);
 }
 
 if (selectCount > 0) {

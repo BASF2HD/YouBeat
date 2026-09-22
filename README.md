@@ -1,6 +1,6 @@
 # AlbumForge Studio
 
-An automated, ultra-premium Windows desktop application built with **Electron + React + TypeScript + Vite + FFmpeg** designed to batch compile gorgeous, high-fidelity YouTube-ready music album videos (`.mp4`) directly from folders.
+An Electron desktop application for Windows and macOS, built with React, TypeScript, Vite, and a bundled FFmpeg executable. It creates album videos (`.mp4`) from music folders.
 
 ---
 
@@ -53,37 +53,24 @@ AlbumForge Studio/
 
 ## Installation & Setup
 
-### Prerequisites
-1. **Node.js** (v18 or higher recommended).
-2. **FFmpeg** installed on your system (added to global PATH) OR you can specify the exact path to your local `ffmpeg.exe` binary in the application settings panel.
+### Prerequisite
+Install Node.js with npm. FFmpeg does not need a separate installation.
 
 ### Get Started
-1. Clone or navigate into the project workspace:
-   ```powershell
-   cd "C:\path\to\AlbumForge Studio"
+1. Clone the repository and enter it:
+   ```sh
+   git clone https://github.com/BASF2HD/bulk-album-video-generator.git
+   cd bulk-album-video-generator
    ```
-2. Install npm dependencies:
-   ```powershell
-   npm install
-   ```
+2. Run `npm start`.
+
+The first start installs dependencies, including the FFmpeg binary for that computer's operating system and CPU, then builds and opens the app. On an existing checkout, run `git pull` followed by `npm start`. The project keeps dependency versions in `package-lock.json`; the FFmpeg executable is downloaded during installation because each operating system and CPU needs its own binary. An installed desktop package already contains FFmpeg and does not require Node.js.
 
 ---
 
 ## Running the Application
 
-### Development Mode
-Runs the React frontend inside Vite's hot-reload server and launches the Electron container:
-```powershell
-# Starts the Vite dev server and opens the Electron desktop app
-npm run dev
-```
-*(In a separate shell or automatically, you can run `npm run electron:dev` to reload Electron if you make changes to main process files).*
-
-Wait, a unified single-command shortcut:
-```powershell
-# Compiles code and launches the complete desktop application
-npm start
-```
+Run `npm start` to install missing dependencies, build the code, and launch the desktop app. For frontend development, `npm run dev` starts the Vite server; Electron must be launched separately with `VITE_DEV_SERVER=true` in its environment.
 
 ---
 

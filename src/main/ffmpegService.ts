@@ -2,29 +2,38 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
+import ffmpegStaticPath from 'ffmpeg-static';
 import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
 
 /**
  * Resolves the actual path to the ffmpeg executable.
- * If the configured path is 'ffmpeg' (the default) but a local bin/ffmpeg.exe exists, use the local one.
+ * The default uses the platform binary installed by ffmpeg-static. A custom
+ * path in settings remains available as an override.
  */
-function resolveFfmpegPath(configuredPath: string): string {
+export function resolveFfmpegPath(configuredPath: string): string {
   const base = configuredPath || 'ffmpeg';
   if (base === 'ffmpeg') {
-    try {
-      const localPath = path.join(app.getAppPath(), 'bin', 'ffmpeg.exe');
-      if (fs.existsSync(localPath)) {
-        return localPath;
-      }
-    } catch (e) {}
+    const executableName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+    const bundledPath = ffmpegStaticPath?.replace('app.asar', 'app.asar.unpacked');
+    const candidates = [
+      bundledPath,
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', executableName),
+      path.join(app.getAppPath(), 'bin', executableName),
+      path.join(process.cwd(), 'bin', executableName),
+      '/opt/homebrew/bin/ffmpeg',
+      '/usr/local/bin/ffmpeg',
+      '/usr/bin/ffmpeg'
+    ].filter((candidate): candidate is string => Boolean(candidate));
 
-    try {
-      const localCwdPath = path.join(process.cwd(), 'bin', 'ffmpeg.exe');
-      if (fs.existsSync(localCwdPath)) {
-        return localCwdPath;
+    for (const candidate of candidates) {
+      try {
+        fs.accessSync(candidate, fs.constants.X_OK);
+        return candidate;
+      } catch {
+        // Continue to the next bundled or well-known system location.
       }
-    } catch (e) {}
+    }
   }
   return base;
 }
