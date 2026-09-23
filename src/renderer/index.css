@@ -774,6 +774,7 @@ body.preview-resizing .workspace-content {
 }
 
 .visual-preview-canvas {
+  container-type: inline-size;
   width: 100%;
   box-sizing: border-box;
   aspect-ratio: 16/9;
@@ -781,8 +782,8 @@ body.preview-resizing .workspace-content {
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  padding: 14px 18px;
-  gap: 16px;
+  padding: 2.1cqw 2.7cqw;
+  gap: 2.4cqw;
   align-items: center;
   position: relative;
   overflow: hidden;
@@ -908,20 +909,21 @@ body.preview-resizing .workspace-content {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   padding-left: 2px;
   overflow: hidden;
   min-width: 0;
 }
 
 .preview-album-header {
-  margin-bottom: 8px;
+  margin-bottom: 1cqw;
   border-bottom: 1px solid rgba(255,255,255,0.06);
-  padding-bottom: 6px;
+  padding-bottom: 0.8cqw;
+  flex-shrink: 0;
 }
 
 .preview-album-name {
-  font-size: 13px;
+  font-size: clamp(8px, 2cqw, 15px);
   font-weight: 800;
   color: #fff;
   white-space: nowrap;
@@ -930,14 +932,15 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-album-meta {
-  font-size: 8px;
+  font-size: clamp(5px, 1.1cqw, 8px);
   color: rgba(255,255,255,0.4);
 }
 
 .preview-tracklist {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -945,19 +948,19 @@ body.preview-resizing .workspace-content {
   display: flex;
   align-items: center;
   border-radius: 4px;
-  padding: 2px 5px;
-  gap: 6px;
+  min-height: 0;
+  padding: 0 0.5cqw;
+  gap: 0.5cqw;
 }
 
 .preview-track-active {
   background: rgba(255, 255, 255, 0.05);
-  border-left: 2px solid #ffffff;
-  padding-left: 4px;
+  border-left: 1px solid #ffffff;
 }
 
 .preview-track-num-col {
-  width: 14px;
-  font-size: 8px;
+  width: 2cqw;
+  font-size: clamp(5px, 1cqw, 8px);
   font-weight: 600;
   flex-shrink: 0;
 }
@@ -971,23 +974,30 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-track-title {
-  font-size: 9px;
+  font-size: clamp(6px, 1.5cqw, 11px);
   font-weight: 700;
+  line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.preview-dense .preview-track-title {
+  font-size: clamp(4px, 1.1cqw, 8px);
+  line-height: 1;
+}
+
 .preview-track-artist {
-  font-size: 7px;
+  font-size: clamp(5px, 1.05cqw, 8px);
   opacity: 0.8;
+  line-height: 1.05;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .preview-track-duration {
-  font-size: 7px;
+  font-size: clamp(5px, 1.05cqw, 8px);
   font-weight: 600;
   opacity: 0.6;
   white-space: nowrap;
@@ -996,11 +1006,15 @@ body.preview-resizing .workspace-content {
   font-variant-numeric: tabular-nums;
 }
 
-.preview-more-tracks {
-  margin-top: 2px;
-  padding-left: 22px;
-  color: rgba(255, 255, 255, 0.28);
-  font-size: 8px;
+@container (max-width: 480px) {
+  .preview-track-artist,
+  .preview-track-duration {
+    display: none;
+  }
+
+  .preview-track-title {
+    line-height: 1;
+  }
 }
 
 .album-overview-card {

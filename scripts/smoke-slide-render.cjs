@@ -9,6 +9,12 @@ const outputDir = path.join(__dirname, '..', '.design-qa', 'slide-render-smoke')
 const longVideo = process.argv.includes('--long-video');
 const renderVideo = process.argv.includes('--video') || longVideo;
 const forceCpu = process.argv.includes('--cpu');
+const trackCountArg = process.argv.find(arg => arg.startsWith('--track-count='));
+const resolutionArg = process.argv.find(arg => arg.startsWith('--resolution='));
+const trackCount = trackCountArg ? Number(trackCountArg.split('=')[1]) : 1;
+if (!Number.isInteger(trackCount) || trackCount < 1 || trackCount > 40) {
+  throw new Error('--track-count must be an integer from 1 to 40');
+}
 
 // Keep Electron alive after the offscreen slide window closes so the video
 // renderer can finish its separate FFmpeg process checks.
@@ -37,7 +43,7 @@ const album = {
 };
 
 const settings = {
-  resolution: '1280x720',
+  resolution: resolutionArg ? resolutionArg.split('=')[1] : '1280x720',
   backgroundColor: '#000000',
   fontFamily: 'Arial',
   activeColor: '#ffffff',
@@ -56,6 +62,17 @@ const settings = {
 
 app.whenReady().then(async () => {
   fs.mkdirSync(outputDir, { recursive: true });
+  if (!renderVideo) {
+    album.tracks = Array.from({ length: trackCount }, (_, index) => ({
+      ...album.tracks[0],
+      id: `smoke-track-${index}`,
+      trackNumber: index + 1,
+      title: `Song ${String(index + 1).padStart(2, '0')} — Layout Test`,
+      duration: 180,
+    }));
+    album.tracksCount = trackCount;
+    album.totalDuration = trackCount * 180;
+  }
   const ffmpegVersion = await testFfmpegPath('ffmpeg');
   console.log(`FFmpeg: ${ffmpegVersion}`);
   if (renderVideo) {

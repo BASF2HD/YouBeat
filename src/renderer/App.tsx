@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
+import { getTrackLayout } from '../shared/trackLayout';
 import appLogo from '../../resources/albumforge-icon.png';
 import jewelCaseOverlay from '../../resources/cd-jewel-case-overlay.png';
 
@@ -626,6 +627,9 @@ export default function App() {
 
   // Active elements
   const selectedAlbum = albums.find(a => a.id === selectedAlbumId) || null;
+  const previewTrackLayout = selectedAlbum
+    ? getTrackLayout(selectedAlbum.tracks.length, 0, settings.resolution)
+    : null;
   const selectedVideoCodec = window.api.platform === 'darwin' &&
     !['auto', 'h264_videotoolbox', 'libx264'].includes(settings.videoCodec)
     ? 'auto'
@@ -1453,33 +1457,38 @@ export default function App() {
                                 <div className="preview-album-name">{selectedAlbum.albumName}</div>
                                 <div className="preview-album-meta">
                                   {selectedAlbum.year} &bull; {selectedAlbum.tracksCount} Songs &bull; {totalDurationStr(selectedAlbum.totalDuration)}
+                                  {previewTrackLayout && selectedAlbum.tracks.length > previewTrackLayout.end - previewTrackLayout.start &&
+                                    <> &bull; Showing {previewTrackLayout.start + 1}-{previewTrackLayout.end}</>}
                                 </div>
                               </div>
 
-                              <div className="preview-tracklist">
-                                {selectedAlbum.tracks.slice(0, 6).map((track, i) => (
+                              <div
+                                className={`preview-tracklist ${previewTrackLayout!.compact ? 'preview-dense' : ''}`}
+                                style={{
+                                  gridTemplateRows: `repeat(${previewTrackLayout!.rows}, minmax(0, 1fr))`,
+                                }}
+                              >
+                                {selectedAlbum.tracks.slice(previewTrackLayout!.start, previewTrackLayout!.end).map((track, i) => (
                                   <div
                                     key={track.id}
                                     className={`preview-track-item ${i === 0 ? 'preview-track-active' : ''}`}
                                     style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}
                                   >
                                     <div className="preview-track-num-col">
-                                      {String(track.trackNumber || i + 1).padStart(2, '0')}
+                                      {String(track.trackNumber || i + previewTrackLayout!.start + 1).padStart(2, '0')}
                                     </div>
                                     <div className="preview-track-info-col">
                                       <div className="preview-track-title">{track.title}</div>
-                                      <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
-                                        {track.artist}
-                                      </div>
+                                      {!previewTrackLayout!.compact &&
+                                        <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
+                                          {track.artist}
+                                        </div>}
                                     </div>
                                     <div className="preview-track-duration" style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}>
                                       {formatTrackTime(track.duration)}
                                     </div>
                                   </div>
                                 ))}
-                                {selectedAlbum.tracks.length > 6 && (
-                                  <div className="preview-more-tracks">+ {selectedAlbum.tracks.length - 6} more songs</div>
-                                )}
                               </div>
                             </div>
                           </div>

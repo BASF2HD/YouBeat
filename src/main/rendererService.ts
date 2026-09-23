@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { Album, RenderSettings } from '../shared/types';
+import { getTrackLayout } from '../shared/trackLayout';
 
 /**
  * Escapes HTML characters to prevent XSS/rendering issues with metadata text.
@@ -90,43 +91,7 @@ export function getSlideHTML(
   jewelCaseSrc: string | null = null
 ): string {
   const trackCount = album.tracks.length;
-  let titleSize = '28px';
-  let artistSize = '18px';
-  let itemGap = '18px';
-  let padding = '20px';
-  let activeIconSize = '24px';
-  
-  if (trackCount > 24) {
-    titleSize = '14px';
-    artistSize = '10px';
-    itemGap = '4px';
-    padding = '6px';
-    activeIconSize = '14px';
-  } else if (trackCount > 16) {
-    titleSize = '18px';
-    artistSize = '12px';
-    itemGap = '6px';
-    padding = '10px';
-    activeIconSize = '16px';
-  } else if (trackCount > 10) {
-    titleSize = '22px';
-    artistSize = '14px';
-    itemGap = '10px';
-    padding = '14px';
-    activeIconSize = '20px';
-  } else if (trackCount > 6) {
-    titleSize = '26px';
-    artistSize = '16px';
-    itemGap = '15px';
-    padding = '18px';
-    activeIconSize = '24px';
-  } else {
-    titleSize = '32px';
-    artistSize = '20px';
-    itemGap = '24px';
-    padding = '24px';
-    activeIconSize = '28px';
-  }
+  const layout = getTrackLayout(trackCount, activeTrackIndex, settings.resolution);
 
   // Cover image source (base64 or SVG placeholder)
   let coverImgSrc = '';
@@ -143,25 +108,10 @@ export function getSlideHTML(
     ? `<img class="jewel-case-overlay" src="${escapeHtml(jewelCaseSrc!)}" />`
     : '';
 
-  // Adaptive tracklist viewport (up to 12 tracks to fit cleanly without overflowing)
-  const maxVisibleTracks = 12;
-  let tracksToRender = album.tracks;
-  let renderOffset = 0;
-  
-  if (trackCount > maxVisibleTracks) {
-    let start = activeTrackIndex - Math.floor(maxVisibleTracks / 2);
-    if (start < 0) start = 0;
-    let end = start + maxVisibleTracks;
-    if (end > trackCount) {
-      end = trackCount;
-      start = Math.max(0, end - maxVisibleTracks);
-    }
-    tracksToRender = album.tracks.slice(start, end);
-    renderOffset = start;
-  }
+  const tracksToRender = album.tracks.slice(layout.start, layout.end);
 
   const trackItemsHTML = tracksToRender.map((track, relativeIndex) => {
-    const actualIndex = relativeIndex + renderOffset;
+    const actualIndex = relativeIndex + layout.start;
     const isActive = actualIndex === activeTrackIndex;
     const color = isActive ? settings.activeColor : settings.inactiveColor;
     const artistStyle = settings.artistItalic ? 'font-style: italic;' : 'font-style: normal;';
@@ -169,15 +119,15 @@ export function getSlideHTML(
     const trackNumDisplay = String(track.trackNumber || actualIndex + 1).padStart(2, '0');
 
     return `
-      <div class="track-item ${activeClass}" style="margin-bottom: ${itemGap}; color: ${color}; padding-top: ${padding}; padding-bottom: ${padding};">
+      <div class="track-item ${activeClass}" style="color: ${color};">
         <div class="track-icon-col">
-          <span class="track-num" style="font-size: ${artistSize}; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
+          <span class="track-num" style="font-size: ${layout.artistSize}px; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
         </div>
         <div class="track-info-col">
-          <div class="track-title" style="font-size: ${titleSize};">${escapeHtml(track.title)}</div>
-          <div class="track-artist" style="font-size: ${artistSize}; ${artistStyle}">${escapeHtml(track.artist)}</div>
+          <div class="track-title" style="font-size: ${layout.titleSize}px;">${escapeHtml(track.title)}</div>
+          ${layout.compact ? '' : `<div class="track-artist" style="font-size: ${layout.artistSize}px; ${artistStyle}">${escapeHtml(track.artist)}</div>`}
         </div>
-        <div class="track-duration" style="font-size: ${artistSize}; color: ${isActive ? color : 'rgba(255,255,255,0.3)'};">
+        <div class="track-duration" style="font-size: ${layout.artistSize}px; color: ${isActive ? color : 'rgba(255,255,255,0.3)'};">
           ${formatDuration(track.duration)}
         </div>
       </div>
@@ -280,15 +230,16 @@ export function getSlideHTML(
           height: 100%;
           display: flex;
           flex-direction: column;
-          justify-content: center;
+          justify-content: flex-start;
           padding-left: 10px;
           min-width: 0;
         }
 
         .album-header {
-          margin-bottom: 30px;
+          margin-bottom: 12px;
           border-bottom: 2px solid rgba(255,255,255,0.06);
-          padding-bottom: 20px;
+          padding-bottom: 12px;
+          flex-shrink: 0;
         }
 
         .album-name {
@@ -309,9 +260,10 @@ export function getSlideHTML(
 
         .tracklist {
           flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
+          min-height: 0;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-rows: repeat(${layout.rows}, minmax(0, 1fr));
           overflow: hidden;
         }
 
@@ -322,13 +274,12 @@ export function getSlideHTML(
           padding-left: 14px;
           padding-right: 14px;
           gap: 12px;
-          transition: all 0.2s ease;
+          min-height: 0;
           background: transparent;
         }
 
         .track-active {
           background: rgba(255, 255, 255, 0.06);
-          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
           border-left: 4px solid #ffffff;
           padding-left: 10px !important;
         }
@@ -357,14 +308,13 @@ export function getSlideHTML(
           display: flex;
           flex-direction: column;
           justify-content: center;
-          padding-right: 10px;
+          padding-right: 0;
           min-width: 0;
         }
 
         .track-title {
           font-weight: 700;
-          line-height: 1.3;
-          margin-bottom: 2px;
+          line-height: 1.15;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -373,6 +323,7 @@ export function getSlideHTML(
         .track-artist {
           font-weight: 400;
           opacity: 0.8;
+          line-height: 1.1;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -408,6 +359,7 @@ export function getSlideHTML(
               <span>${album.year}</span> &bull; 
               <span>${album.tracksCount} Tracks</span> &bull; 
               <span>Total Duration: ${formatDuration(album.totalDuration)}</span>
+              ${trackCount > layout.end - layout.start ? ` &bull; <span>Showing ${layout.start + 1}-${layout.end} of ${trackCount}</span>` : ''}
             </div>
           </div>
           <div class="tracklist">
@@ -486,7 +438,7 @@ export async function generateSlidesForAlbum(
 
           // Encode to SVG <foreignObject>. Use strict width/height so Chromium
           // doesn't treat the data URI as a different viewport size.
-          const safeHtml = html.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&apos;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/`/g, '&#96;');
+          const safeHtml = html.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&apos;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
           const ratioCss = 'width:' + W + 'px;height:' + H + 'px;transform:scale(' + (1 / dpr) + ');transform-origin:0 0;box-sizing:border-box;';
           const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '">' +
             '<foreignObject width="' + W + '" height="' + H + '">' +

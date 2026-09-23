@@ -11,6 +11,7 @@ const scanLibrary = process.argv.includes('--scan');
 const selectFirst = process.argv.includes('--select-first');
 const selectAlbumArg = process.argv.find(argument => argument.startsWith('--select-album='));
 const selectAlbum = selectAlbumArg?.slice('--select-album='.length);
+const previewWidthArg = process.argv.find(argument => argument.startsWith('--preview-width='));
 const targets = await fetch('http://127.0.0.1:9222/json/list').then(response => response.json());
 const target = targets.find(item => item.title === 'AlbumForge Studio');
 
@@ -44,6 +45,16 @@ const send = (method, params = {}) => new Promise((resolve, reject) => {
 
 await send('Page.enable');
 await send('Runtime.enable');
+
+if (previewWidthArg) {
+  const width = Number(previewWidthArg.split('=')[1]);
+  if (!Number.isFinite(width) || width < 320 || width > 720) {
+    throw new Error('--preview-width must be between 320 and 720');
+  }
+  await send('Runtime.evaluate', { expression: `localStorage.setItem('preview_pane_width', ${JSON.stringify(String(width))})` });
+  await send('Page.reload');
+  await new Promise(resolve => setTimeout(resolve, 500));
+}
 
 if (enableJewelCase) {
   await send('Runtime.evaluate', {

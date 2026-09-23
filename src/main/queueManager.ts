@@ -1,7 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Album, RenderSettings, LogItem, AlbumStatus } from '../shared/types';
+import { Album, RenderSettings, LogItem } from '../shared/types';
 import { generateSlidesForAlbum } from './rendererService';
 import { renderAlbumVideo, killActiveFfmpegProcess, ensureOutputWritable } from './ffmpegService';
 
