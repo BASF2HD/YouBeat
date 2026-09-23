@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
 import ffmpegStaticPath from 'ffmpeg-static';
+import * as mm from 'music-metadata';
 import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
 
@@ -388,6 +389,40 @@ export async function renderAlbumVideo(
   );
   log(`Video Encoding Engine: ${codecName}`, 'info');
 
+  // All segments are stream-copied into one MP4, so their audio codec settings
+  // must agree. Probe the sources once before rendering any segment.
+  const audioSources: Array<{ sampleRate: number; channels: number; bitsPerSample: number }> = [];
+  for (const track of album.tracks) {
+    const metadata = await mm.parseFile(track.filePath, { skipCovers: true, duration: false });
+    const sampleRate = metadata.format.sampleRate;
+    const channels = metadata.format.numberOfChannels;
+    if (!sampleRate || !channels) {
+      throw new Error(`Could not read the audio format of "${track.fileName}". Rendering stopped to avoid an incorrect audio export.`);
+    }
+    audioSources.push({ sampleRate, channels, bitsPerSample: metadata.format.bitsPerSample || 16 });
+  }
+
+  const audioCodec = settings.audioCodec || 'alac';
+  const firstSource = audioSources[0];
+  if (audioCodec === 'alac' && audioSources.some(source =>
+    source.sampleRate !== firstSource.sampleRate || source.channels !== firstSource.channels
+  )) {
+    throw new Error('Lossless audio needs the same sample rate and channel count in every song. This album mixes formats; choose AAC in Settings or use matching source files.');
+  }
+
+  const audioSampleRate = audioCodec === 'alac'
+    ? firstSource.sampleRate
+    : Math.max(...audioSources.map(source => source.sampleRate));
+  const audioChannels = audioCodec === 'alac'
+    ? firstSource.channels
+    : Math.max(...audioSources.map(source => source.channels));
+  const audioArgs = audioCodec === 'alac'
+    ? ['-c:a', 'alac', '-sample_fmt', audioSources.some(source => source.bitsPerSample > 16) ? 's32p' : 's16p', '-ar', String(audioSampleRate), '-ac', String(audioChannels)]
+    : ['-c:a', 'aac', '-profile:a', 'aac_low', '-ar', String(audioSampleRate), '-ac', String(audioChannels), '-b:a', audioChannels === 1 ? '192k' : audioChannels <= 2 ? '384k' : '512k'];
+  log(audioCodec === 'alac'
+    ? `Audio Encoding: lossless ALAC, ${audioSampleRate} Hz, ${audioChannels} channel(s); source PCM is not downsampled.`
+    : `Audio Encoding: AAC-LC ${audioArgs[audioArgs.length - 1]}, ${audioSampleRate} Hz, ${audioChannels} channel(s); this mode is lossy.`, 'info');
+
   // A slide does not change during a track. Encode it at about one frame per second
   // for the track's full duration so inter-frame compression can work across
   // the song. Repeating a one-second H.264 clip instead repeats its keyframe
@@ -421,11 +456,8 @@ export async function renderAlbumVideo(
       '-map', '1:a:0',
       '-pix_fmt', 'yuv420p',
       ...codecArgs,
-      '-c:a', 'aac',
-      '-ar', '44100',
-      '-ac', '2',
-      '-b:a', '192k',
-      '-t', String(duration),
+      ...audioArgs,
+      '-shortest',
       '-video_track_timescale', '90000',
       segmentPath
     ];

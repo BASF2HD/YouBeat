@@ -35,6 +35,7 @@ export interface RenderSettings {
   artistItalic: boolean;
   useJewelCase: boolean;
   exportQuality: 'high' | 'medium' | 'small';
+  audioCodec: 'alac' | 'aac';
   introDuration: number; // in seconds
   fadeDuration: number; // in seconds
   scanRecursive: boolean;

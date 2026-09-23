@@ -9,6 +9,8 @@ const outputDir = path.join(__dirname, '..', '.design-qa', 'slide-render-smoke')
 const longVideo = process.argv.includes('--long-video');
 const renderVideo = process.argv.includes('--video') || longVideo;
 const forceCpu = process.argv.includes('--cpu');
+const useAac = process.argv.includes('--aac');
+const hiResAudio = process.argv.includes('--hires-audio');
 const trackCountArg = process.argv.find(arg => arg.startsWith('--track-count='));
 const resolutionArg = process.argv.find(arg => arg.startsWith('--resolution='));
 const trackCount = trackCountArg ? Number(trackCountArg.split('=')[1]) : 1;
@@ -51,6 +53,7 @@ const settings = {
   artistItalic: true,
   useJewelCase: true,
   exportQuality: 'medium',
+  audioCodec: useAac ? 'aac' : 'alac',
   introDuration: 0,
   fadeDuration: 0,
   scanRecursive: false,
@@ -83,7 +86,8 @@ app.whenReady().then(async () => {
       const result = spawnSync(ffmpeg, [
         '-y', '-hide_banner', '-loglevel', 'error',
         '-f', 'lavfi', '-i', `sine=frequency=${440 + index * 220}:duration=${duration}`,
-        '-ar', '44100', '-ac', '2', filePath
+        '-ar', hiResAudio ? '96000' : '44100', '-ac', '2',
+        '-c:a', hiResAudio ? 'pcm_s24le' : 'pcm_s16le', filePath
       ], { stdio: 'inherit' });
       if (result.status !== 0) throw new Error(`Failed to create test audio ${index}`);
       return {
@@ -115,7 +119,7 @@ app.whenReady().then(async () => {
       throw new Error('The video renderer did not produce an MP4.');
     }
     const inspect = spawnSync(resolveFfmpegPath('ffmpeg'), ['-hide_banner', '-i', result.videoPath, '-f', 'null', '-'], { encoding: 'utf8' });
-    if (inspect.status !== 0 || !inspect.stderr.includes('h264') || !inspect.stderr.includes('aac')) {
+    if (inspect.status !== 0 || !inspect.stderr.includes('h264') || !inspect.stderr.includes(useAac ? 'aac' : 'alac')) {
       throw new Error(`The rendered MP4 did not decode correctly: ${inspect.stderr}`);
     }
     const durationMatch = inspect.stderr.match(/Duration: (\d+):(\d+):([\d.]+)/);
@@ -126,6 +130,25 @@ app.whenReady().then(async () => {
       throw new Error(`Unexpected output duration: ${actualDuration}s instead of ${album.totalDuration}s`);
     }
     const outputSize = fs.statSync(result.videoPath).size;
+    if (!useAac) {
+      const decodePcm = (filePath) => {
+        const decoded = spawnSync(resolveFfmpegPath('ffmpeg'), [
+          '-v', 'error', '-i', filePath, '-map', '0:a:0',
+          '-c:a', hiResAudio ? 'pcm_s32le' : 'pcm_s16le',
+          '-f', hiResAudio ? 's32le' : 's16le', '-'
+        ], { maxBuffer: 64 * 1024 * 1024 });
+        if (decoded.status !== 0) throw new Error(`Could not decode PCM from ${filePath}: ${decoded.stderr}`);
+        return decoded.stdout;
+      };
+      const sourcePcm = Buffer.concat(album.tracks.map(track => decodePcm(track.filePath)));
+      const renderedPcm = decodePcm(result.videoPath);
+      if (!sourcePcm.equals(renderedPcm)) {
+        let mismatch = 0;
+        while (mismatch < Math.min(sourcePcm.length, renderedPcm.length) && sourcePcm[mismatch] === renderedPcm[mismatch]) mismatch++;
+        throw new Error(`Lossless PCM mismatch at byte ${mismatch}: source=${sourcePcm.length}, rendered=${renderedPcm.length}`);
+      }
+      console.log(`Lossless PCM verified: ${renderedPcm.length} decoded bytes match sources`);
+    }
     if (longVideo && (outputSize > 20 * 1024 * 1024 || !inspect.stderr.includes('1 fps'))) {
       throw new Error(`Still-image video was not compact: ${outputSize} bytes`);
     }

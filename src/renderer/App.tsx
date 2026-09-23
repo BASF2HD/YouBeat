@@ -111,6 +111,7 @@ export default function App() {
     artistItalic: true,
     useJewelCase: false,
     exportQuality: 'medium',
+    audioCodec: 'alac',
     introDuration: 0,
     fadeDuration: 0,
     scanRecursive: false,
@@ -1167,7 +1168,7 @@ export default function App() {
                     <span className="input-hint">About 1 fps · still slides stay crisp without encoding duplicate frames</span>
                   </div>
                   <div className="input-group">
-                    <span className="input-label">Export quality</span>
+                    <span className="input-label">Video export quality</span>
                     <select 
                       className="select-input"
                       value={settings.exportQuality}
@@ -1177,6 +1178,18 @@ export default function App() {
                       <option value="medium">Balanced (Standard YouTube)</option>
                       <option value="small">Compact (Faster upload)</option>
                     </select>
+                  </div>
+                  <div className="input-group">
+                    <span className="input-label">Audio encoding</span>
+                    <select
+                      className="select-input"
+                      value={settings.audioCodec || 'alac'}
+                      onChange={(e) => updateSettings({ audioCodec: e.target.value as RenderSettings['audioCodec'] })}
+                    >
+                      <option value="alac">Lossless ALAC — preserve source audio (larger MP4)</option>
+                      <option value="aac">AAC-LC 384 kb/s — YouTube-friendly (lossy)</option>
+                    </select>
+                    <span className="input-hint">Audio quality is independent of the video export-quality setting. Lossless requires matching sample rate and channel count across an album.</span>
                   </div>
                 </div>
 
