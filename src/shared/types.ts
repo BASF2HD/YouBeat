@@ -51,6 +51,14 @@ export interface LogItem {
   text: string;
 }
 
+export interface ScanProgressPayload {
+  phase: 'discovering' | 'parsing';
+  current: number;
+  total: number;
+  currentFolder: string;
+  foldersFound: number;
+}
+
 export interface IPCAPI {
   platform: string;
   selectFolder: () => Promise<string | null>;
@@ -65,10 +73,14 @@ export interface IPCAPI {
   onAlbumUpdated: (callback: (album: Album) => void) => () => void;
   onLogAdded: (callback: (log: LogItem) => void) => () => void;
   onQueueFinished: (callback: () => void) => () => void;
+  onScanProgress: (callback: (progress: ScanProgressPayload) => void) => () => void;
   getFfmpegVersion: (path: string) => Promise<string>;
   getHwAccelerators: () => Promise<Array<{ id: string; name: string; available: boolean }>>;
   openFolder: (path: string) => Promise<void>;
   openVideo: (path: string) => Promise<void>;
+  clearScanCache: () => Promise<boolean>;
+  testOutputWritable: (outDir: string) => Promise<{ ok: boolean; message: string }>;
+  getDefaultOutputFolder: () => Promise<string>;
 }
 
 declare global {

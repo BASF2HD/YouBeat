@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Album, RenderSettings, LogItem, Track } from '../shared/types';
+import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
 import appLogo from '../../resources/albumforge-icon.png';
 import jewelCaseOverlay from '../../resources/cd-jewel-case-overlay.png';
 
@@ -125,6 +125,7 @@ export default function App() {
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<string>>(() => new Set());
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [scanProgress, setScanProgress] = useState<ScanProgressPayload | null>(null);
 
   // Queue state
   const [isQueueRunning, setIsQueueRunning] = useState<boolean>(false);
@@ -136,6 +137,24 @@ export default function App() {
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const workspaceContentRef = useRef<HTMLDivElement>(null);
   const selectAllAlbumsRef = useRef<HTMLInputElement>(null);
+
+  // Output folder preflight state (inline banner under Settings picker)
+  const [outputCheck, setOutputCheck] = useState<{ checking: boolean; ok: boolean | null; message: string | null }>({
+    checking: false,
+    ok: null,
+    message: null
+  });
+
+  const runOutputPreflight = async () => {
+    if (!settings.outputFolder) {
+      setOutputCheck({ checking: false, ok: false, message: 'No output folder selected yet.' });
+      return false;
+    }
+    setOutputCheck({ checking: true, ok: null, message: 'Checking writability…' });
+    const result = await window.api.testOutputWritable(settings.outputFolder);
+    setOutputCheck({ checking: false, ok: result.ok, message: result.message });
+    return result.ok;
+  };
 
   // Inline Metadata Editor Modal State
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
@@ -245,10 +264,12 @@ export default function App() {
   // Load basic configurations from localStorage upon mount
   useEffect(() => {
     const savedSettings = localStorage.getItem('render_settings');
+    let persistedHasOutput = false;
     if (savedSettings) {
       try {
         const { fps: _obsoleteFps, ...parsed } = JSON.parse(savedSettings);
         setSettings(prev => ({ ...prev, ...parsed }));
+        if (parsed.outputFolder) persistedHasOutput = true;
       } catch (err) {
         console.error('Failed to parse saved settings:', err);
       }
@@ -257,6 +278,27 @@ export default function App() {
     const savedRoot = localStorage.getItem('root_folder');
     if (savedRoot) {
       setRootFolder(savedRoot);
+    }
+
+    // If no output folder was previously persisted, pre-populate with a safe
+    // local default (your OS Videos / AlbumForge Studio folder) instead of
+    // letting it default to a (potentially blocked) network share sibling.
+    if (!persistedHasOutput) {
+      (async () => {
+        try {
+          const safeLocal = await window.api.getDefaultOutputFolder();
+          if (safeLocal) {
+            setSettings(prev => {
+              if (prev.outputFolder) return prev;
+              const next = { ...prev, outputFolder: safeLocal };
+              localStorage.setItem('render_settings', JSON.stringify(next));
+              return next;
+            });
+          }
+        } catch {
+          // Best-effort; user can still choose manually in Settings.
+        }
+      })();
     }
   }, []);
 
@@ -267,6 +309,14 @@ export default function App() {
       localStorage.setItem('render_settings', JSON.stringify(next));
       return next;
     });
+    // If output folder was just set, re-check its writability
+    if ('outputFolder' in updated) {
+      setOutputCheck({ checking: false, ok: null, message: null });
+      if (updated.outputFolder) {
+        // Run asynchronously so it doesn't block settings commit
+        queueMicrotask(runOutputPreflight);
+      }
+    }
   };
 
   // IPC Event listeners mapping for Electron Background processes
@@ -304,10 +354,16 @@ export default function App() {
       audio.play().catch(() => {});
     });
 
+    // 4. Scan progress listener
+    const unsubscribeScanProgress = window.api.onScanProgress((progress) => {
+      setScanProgress(progress);
+    });
+
     return () => {
       unsubscribeLog();
       unsubscribeAlbum();
       unsubscribeFinished();
+      unsubscribeScanProgress();
     };
   }, []);
 
@@ -368,6 +424,7 @@ export default function App() {
   const handleScan = async () => {
     if (!rootFolder) return;
     setIsScanning(true);
+    setScanProgress(null);
     setLogs([]);
     setActiveTab('library');
     
@@ -403,6 +460,7 @@ export default function App() {
       ]);
     } finally {
       setIsScanning(false);
+      setScanProgress(null);
     }
   };
 
@@ -413,6 +471,13 @@ export default function App() {
 
     if (!settings.outputFolder) {
       alert('Please select an output folder in settings first!');
+      setActiveTab('settings');
+      return;
+    }
+
+    // Fail early: don't even add to queue if the output folder isn't writable
+    if (!await runOutputPreflight()) {
+      alert(`Cannot start render: ${outputCheck.message || 'Output folder is not writable.'}\n\nPlease pick a different output folder (local folders like C:\\Videos work best).`);
       setActiveTab('settings');
       return;
     }
@@ -432,6 +497,13 @@ export default function App() {
     
     if (!settings.outputFolder) {
       alert('Please select an output folder in settings first!');
+      setActiveTab('settings');
+      return;
+    }
+
+    // Fail early: don't even add to queue if the output folder isn't writable
+    if (!await runOutputPreflight()) {
+      alert(`Cannot start render: ${outputCheck.message || 'Output folder is not writable.'}\n\nPlease pick a different output folder (local folders like C:\\Videos work best).`);
       setActiveTab('settings');
       return;
     }
@@ -728,6 +800,61 @@ export default function App() {
                   </div>
                 </div>
 
+                {isScanning && scanProgress && (
+                  <div className="scan-progress-card" style={{
+                    margin: '0 15px 15px 15px',
+                    padding: '14px 18px',
+                    background: 'var(--glass-bg)',
+                    border: '1px solid var(--glass-border)',
+                    borderRadius: '10px',
+                    backdropFilter: 'blur(8px)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12px' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {scanProgress.phase === 'discovering' ? '🔍 Discovering directories…' : '📖 Reading album metadata…'}
+                      </div>
+                      <div style={{ display: 'flex', gap: '14px', color: 'var(--text-secondary)' }}>
+                        <span>
+                          {scanProgress.phase === 'discovering' ? (
+                            <>Folders searched: <strong style={{ color: 'var(--accent-primary)' }}>{scanProgress.current}</strong> · Albums found: <strong style={{ color: 'var(--accent-primary)' }}>{scanProgress.foldersFound}</strong></>
+                          ) : (
+                            <>Albums <strong style={{ color: 'var(--accent-primary)' }}>{scanProgress.current}</strong> / {scanProgress.total}</>
+                          )}
+                        </span>
+                        {scanProgress.phase === 'parsing' && scanProgress.total > 0 && (
+                          <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
+                            {Math.round((scanProgress.current / scanProgress.total) * 100)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="progress-bar-container" style={{ height: '8px', marginTop: '0' }}>
+                      <div
+                        className="progress-bar-fill"
+                        style={{
+                          width: scanProgress.phase === 'parsing' && scanProgress.total > 0
+                            ? `${(scanProgress.current / scanProgress.total) * 100}%`
+                            : `${Math.min(100, 30 + (scanProgress.current % 70))}%`,
+                          transition: 'width 0.15s linear'
+                        }}
+                      />
+                    </div>
+                    {scanProgress.currentFolder && (
+                      <div style={{
+                        marginTop: '8px',
+                        fontSize: '11px',
+                        color: 'var(--text-muted)',
+                        fontFamily: 'Consolas, Menlo, monospace',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {scanProgress.currentFolder}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Scanned Albums table */}
                 {albums.length > 0 ? (
                   <div className="table-container">
@@ -920,7 +1047,7 @@ export default function App() {
                 <div className="settings-section-title">Directory paths configurations</div>
                 <div className="input-group" style={{ marginBottom: '15px' }}>
                   <span className="input-label">Output video target directory</span>
-                  <div className="picker-row">
+                  <div className="picker-row" style={{ gap: '6px' }}>
                     <input 
                       type="text" 
                       className="text-input" 
@@ -929,7 +1056,62 @@ export default function App() {
                       placeholder="Please select an output folder" 
                     />
                     <button className="btn btn-secondary" onClick={handleSelectOutput}>Choose Path</button>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '0 12px', fontSize: '11px', flexShrink: 0 }}
+                      onClick={runOutputPreflight}
+                      disabled={!settings.outputFolder || outputCheck.checking}
+                    >
+                      {outputCheck.checking ? 'Checking…' : '✅ Test'}
+                    </button>
                   </div>
+
+                  {settings.outputFolder && (
+                    <div style={{
+                      marginTop: '10px',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--glass-border)',
+                      fontSize: '11px',
+                      lineHeight: 1.55,
+                      background:
+                        outputCheck.checking ? 'rgba(255,193,7,0.07)' :
+                        outputCheck.ok === true ? 'rgba(46,204,113,0.07)' :
+                        outputCheck.ok === false ? 'rgba(231,76,60,0.07)' :
+                        'var(--glass-bg)',
+                      borderColor:
+                        outputCheck.ok === true ? 'rgba(46,204,113,0.35)' :
+                        outputCheck.ok === false ? 'rgba(231,76,60,0.35)' :
+                        'var(--glass-border)'
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: '3px', color:
+                        outputCheck.checking ? '#f39c12' :
+                        outputCheck.ok === true ? '#2ecc71' :
+                        outputCheck.ok === false ? '#e74c3c' :
+                        'var(--text-secondary)'
+                      }}>
+                        {outputCheck.checking
+                          ? '⏳ Verifying write access…'
+                          : outputCheck.ok === true
+                            ? '✅ Output folder is writable'
+                            : outputCheck.ok === false
+                              ? '⛔ Output folder is NOT writable'
+                              : 'ℹ️  Click "Test" to verify write access before rendering'}
+                      </div>
+                      {outputCheck.message && (
+                        <div style={{ color: 'var(--text-secondary)', fontFamily: 'Consolas, Menlo, monospace', wordBreak: 'break-word' }}>
+                          {outputCheck.message}
+                        </div>
+                      )}
+                      {outputCheck.ok === false && (
+                        <div style={{ marginTop: '6px', color: 'var(--text-secondary)' }}>
+                          💡 TRAE sandbox and/or network-share permissions typically block writes to UNC paths like <code>Z:\</code>. Pick a local folder like{' '}
+                          <code style={{ background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>C:\Videos</code>,{' '}
+                          <code style={{ background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4 }}>D:\Renders</code>, or your Desktop.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="input-group" style={{ marginBottom: '20px' }}>
@@ -1153,6 +1335,26 @@ export default function App() {
                     />
                     <span><strong>Skip already rendered albums (Fast Resume)</strong> — Skips albums if their finished MP4 already exists in the output folder. Essential for uninterrupted 1,000+ album batch jobs.</span>
                   </label>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px', padding: '12px 14px', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '10px', gap: '14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>Smart scan cache</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                        Album fingerprints (file list + sizes + mtimes) are saved to <code style={{ background: 'var(--surface-2)', padding: '1px 5px', borderRadius: 4, fontSize: '10px' }}>scan_cache.json</code> so re-scanning the same folder takes seconds instead of minutes. Cache is automatically invalidated per-folder whenever any audio or cover file changes.
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ padding: '8px 14px', fontSize: '11px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                      onClick={async () => {
+                        if (!confirm('Clear the persistent album scan cache? Next library scan will rebuild everything from scratch.')) return;
+                        const ok = await window.api.clearScanCache();
+                        alert(ok ? 'Scan cache cleared successfully.' : 'Failed to clear scan cache.');
+                      }}
+                    >
+                      🗑️ Clear Scan Cache
+                    </button>
+                  </div>
                 </div>
 
               </div>

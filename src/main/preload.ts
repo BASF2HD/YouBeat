@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { Album, RenderSettings, LogItem } from '../shared/types';
+import { Album, RenderSettings, LogItem, ScanProgressPayload } from '../shared/types';
 
 contextBridge.exposeInMainWorld('api', {
   platform: process.platform,
@@ -39,5 +39,17 @@ contextBridge.exposeInMainWorld('api', {
     return () => {
       ipcRenderer.off('queue-finished', listener);
     };
-  }
+  },
+
+  onScanProgress: (callback: (progress: ScanProgressPayload) => void) => {
+    const listener = (_event: any, progress: ScanProgressPayload) => callback(progress);
+    ipcRenderer.on('scan-progress', listener);
+    return () => {
+      ipcRenderer.off('scan-progress', listener);
+    };
+  },
+
+  clearScanCache: () => ipcRenderer.invoke('clear-scan-cache'),
+  testOutputWritable: (outDir: string) => ipcRenderer.invoke('test-output-writable', outDir),
+  getDefaultOutputFolder: () => ipcRenderer.invoke('get-default-output-folder')
 });

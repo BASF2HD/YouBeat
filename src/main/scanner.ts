@@ -82,17 +82,44 @@ async function safeReaddir(dirPath: string): Promise<Array<{ name: string; isDir
   }
 }
 
+export interface ScanProgress {
+  phase: 'discovering' | 'parsing';
+  current: number;
+  total: number;
+  currentFolder: string;
+  foldersFound: number;
+}
+
+export type ScanProgressCallback = (progress: ScanProgress) => void;
+
 /**
  * Scans the root folder and detects folders containing supported audio files.
  * Returns an array of absolute directory paths that contain audio tracks.
  */
-export async function scanForAlbums(rootFolder: string, recursive: boolean): Promise<string[]> {
+export async function scanForAlbums(
+  rootFolder: string,
+  recursive: boolean,
+  onProgress?: ScanProgressCallback
+): Promise<string[]> {
   const albumFolders: string[] = [];
   console.log(`[Scanner] Starting scan of: "${rootFolder}" (recursive: ${recursive})`);
 
+  let discovered = 0;
+
   async function checkDir(dirPath: string, depth: number) {
     try {
+      discovered++;
       console.log(`[Scanner] Scanning directory (depth=${depth}): "${dirPath}"`);
+
+      if (onProgress) {
+        onProgress({
+          phase: 'discovering',
+          current: discovered,
+          total: 0,
+          currentFolder: dirPath,
+          foldersFound: albumFolders.length
+        });
+      }
 
       const entries = await safeReaddir(dirPath);
 

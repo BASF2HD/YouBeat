@@ -214,6 +214,42 @@ export function killActiveFfmpegProcess(): void {
 }
 
 /**
+ * Fail-fast preflight for the user's chosen output folder. Verifies that the
+ * directory (1) can be created, (2) is writable via an actual file
+ * create+write+unlink, and (3) sub-folders can be created inside it. This
+ * catches EPERM / sandbox issues before the user wastes time generating
+ * per-slide PNG frames. Throws a user-friendly error on failure.
+ */
+export async function ensureOutputWritable(outDir: string): Promise<void> {
+  const sysRootHint = process.platform === 'win32'
+    ? 'Try a local folder such as C:\\Videos, D:\\Renders, or your Desktop.'
+    : 'Try a local folder such as ~/Videos or your home directory.';
+
+  const makeError = (action: string, err: Error): Error => {
+    const code = (err as NodeJS.ErrnoException).code;
+    const hint =
+      (code === 'EPERM' || code === 'EACCES' || code === 'EROFS' || /permission|not permitted|access denied/i.test(err.message))
+        ? ` This is almost always caused by a sandbox/antivirus/network-share permission blocking the app's writes to "${outDir}". ${sysRootHint}`
+        : '';
+    return new Error(`Cannot ${action} in output folder "${outDir}": ${err.message}${hint}`);
+  };
+
+  try {
+    await fs.promises.mkdir(outDir, { recursive: true });
+  } catch (err) {
+    throw makeError('create the output folder', err as Error);
+  }
+
+  try {
+    const probe = path.join(outDir, `.albumforge-write-test-${process.pid}-${Date.now()}.tmp`);
+    await fs.promises.writeFile(probe, 'ok', { encoding: 'utf-8', flag: 'w' });
+    await fs.promises.unlink(probe);
+  } catch (err) {
+    throw makeError('write a test file', err as Error);
+  }
+}
+
+/**
  * Spawns an FFmpeg command and monitors progress, piping logs.
  */
 function runFfmpegCmd(
@@ -289,9 +325,9 @@ export async function renderAlbumVideo(
   const outDir = settings.outputFolder;
   const numTracks = album.tracks.length;
 
-  if (!fs.existsSync(outDir)) {
-    await fs.promises.mkdir(outDir, { recursive: true });
-  }
+  // Fail fast BEFORE encoding a single frame. Also wraps any EPERM/EACCES with
+  // a helpful sandbox/network share message and suggests a local alternative.
+  await ensureOutputWritable(outDir);
 
   // Create local logging wrapper
   const log = (text: string, type: LogItem['type'] = 'ffmpeg') => {

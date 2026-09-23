@@ -1,8 +1,9 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { Album, RenderSettings } from '../shared/types';
-import { scanForAlbums } from './scanner';
+import { scanForAlbums, ScanProgress } from './scanner';
 import { parseAlbumFolder } from './metadata';
 import { queueManager } from './queueManager';
 import { testFfmpegPath, getAvailableHwEncoders } from './ffmpegService';
@@ -87,7 +88,112 @@ app.on('window-all-closed', () => {
   }
 });
 
+// =============================================================================
+// Persistent Scan Cache
+// =============================================================================
+// Caches parsed Albums on disk so re-scanning the same root is near-instant.
+// Each rootFolder+recursive combo has its own cache entry. Each album in the
+// entry is keyed by folderPath with a fingerprint = sorted list of
+// (fileName, size, mtimeMs). If the fingerprint matches, the cached Album is
+// reused instead of re-parsing metadata/embedded covers over the network.
+
+interface CachedAlbumEntry {
+  fingerprint: string;
+  cachedAt: number;
+  album: Album;
+}
+
+interface ScanCacheFile {
+  version: 1;
+  libraries: Record<string, {
+    cachedAt: number;
+    recursive: boolean;
+    rootFolder: string;
+    albums: Record<string, CachedAlbumEntry>;
+  }>;
+}
+
+function scanCachePath(): string {
+  return path.join(app.getPath('userData'), 'scan_cache.json');
+}
+
+async function loadScanCache(): Promise<ScanCacheFile> {
+  try {
+    const p = scanCachePath();
+    if (fs.existsSync(p)) {
+      const data = await fs.promises.readFile(p, 'utf-8');
+      const parsed = JSON.parse(data) as ScanCacheFile;
+      if (parsed && parsed.version === 1 && parsed.libraries) return parsed;
+    }
+  } catch (err) {
+    console.warn('Failed to load scan cache, starting fresh:', (err as Error).message);
+  }
+  return { version: 1, libraries: {} };
+}
+
+async function saveScanCache(cache: ScanCacheFile): Promise<void> {
+  try {
+    const p = scanCachePath();
+    await fs.promises.mkdir(path.dirname(p), { recursive: true });
+    await fs.promises.writeFile(p, JSON.stringify(cache), 'utf-8');
+  } catch (err) {
+    console.warn('Failed to persist scan cache:', (err as Error).message);
+  }
+}
+
+function cacheKeyFor(rootFolder: string, recursive: boolean): string {
+  // Short, deterministic, filesystem-safe key for each (root, recursive) pair
+  const raw = `${recursive ? '1' : '0'}::${rootFolder}`;
+  return crypto.createHash('sha1').update(raw).digest('hex');
+}
+
+const AUDIO_EXTS = new Set(['.mp3', '.flac', '.wav', '.m4a', '.aac']);
+const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
+
+/**
+ * Fast fingerprint of a folder = sorted list of (name, size, mtimeMs) for
+ * audio + cover image files. This is cheap even for network folders because
+ * it does 1 readdir + per-file stat (no file content reads, no metadata parse).
+ */
+async function fingerprintAlbumFolder(folderPath: string): Promise<string | null> {
+  try {
+    const names = await fs.promises.readdir(folderPath);
+    const stats: string[] = [];
+    for (const name of names) {
+      const ext = path.extname(name).toLowerCase();
+      if (!AUDIO_EXTS.has(ext) && !IMAGE_EXTS.has(ext)) continue;
+      try {
+        const s = await fs.promises.stat(path.join(folderPath, name));
+        if (!s.isFile()) continue;
+        stats.push(`${name}|${s.size}|${Math.round(s.mtimeMs)}`);
+      } catch {
+        // Per-file stat failures are ignored (permissions, locked files, etc.)
+      }
+    }
+    stats.sort();
+    return crypto.createHash('sha1').update(stats.join('\n')).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Quickly validate whether a folder still looks like an album folder
+ * (1 readdir, 0 metadata reads). Used so we skip fingerprinting/fingerprint
+ * checks on folders that don't contain audio anymore.
+ */
+async function folderHasAudioFiles(folderPath: string): Promise<boolean> {
+  try {
+    const names = await fs.promises.readdir(folderPath);
+    return names.some(n => AUDIO_EXTS.has(path.extname(n).toLowerCase()));
+  } catch {
+    return false;
+  }
+}
+
+// =============================================================================
 // IPC Handler registration
+// =============================================================================
 ipcMain.handle('select-folder', async () => {
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -105,18 +211,127 @@ ipcMain.handle('copy-text', (_event, text: string): void => {
 
 ipcMain.handle('scan-albums', async (_event, rootFolder: string, recursive: boolean): Promise<Album[]> => {
   try {
-    const folders = await scanForAlbums(rootFolder, recursive);
+    const emitProgress = (progress: ScanProgress) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('scan-progress', progress);
+      }
+    };
+
+    const cacheKey = cacheKeyFor(rootFolder, recursive);
+    const scanCache = await loadScanCache();
+    const cachedLibrary = scanCache.libraries[cacheKey];
     const tempCoversDir = path.join(app.getPath('userData'), 'temp_covers');
 
-    // Parse eligible folders into albums using a parallel worker pool (8 concurrent workers)
-    const CONCURRENCY = 8;
-    const albums: Album[] = [];
+    // ========================================================================
+    // FAST PATH: Try to skip directory discovery entirely
+    // If the cached library was built with the same recursive flag and every
+    // cached album folder still exists and still contains audio files, we
+    // skip the O(N) filesystem walk.
+    // ========================================================================
+    let folders: string[] = [];
+    let usedDiscoveryFastPath = false;
+    if (cachedLibrary && cachedLibrary.recursive === recursive) {
+      const cachedFolders = Object.keys(cachedLibrary.albums);
+      if (cachedFolders.length > 0 && fs.existsSync(rootFolder)) {
+        const VALIDATE_CONCURRENCY = 20;
+        let validateOk = true;
+        for (let i = 0; i < cachedFolders.length; i += VALIDATE_CONCURRENCY) {
+          const chunk = cachedFolders.slice(i, i + VALIDATE_CONCURRENCY);
+          const results = await Promise.all(chunk.map(folderHasAudioFiles));
+          if (results.some(ok => !ok)) {
+            validateOk = false;
+            break;
+          }
+        }
+        if (validateOk) {
+          folders = cachedFolders;
+          usedDiscoveryFastPath = true;
+          console.log(`[ScanCache] Fast path: skipping directory discovery (${folders.length} cached folders all validated)`);
+          emitProgress({
+            phase: 'parsing',
+            current: 0,
+            total: folders.length,
+            currentFolder: rootFolder,
+            foldersFound: folders.length
+          });
+        }
+      }
+    }
 
-    for (let i = 0; i < folders.length; i += CONCURRENCY) {
-      const chunk = folders.slice(i, i + CONCURRENCY);
+    if (!usedDiscoveryFastPath) {
+      folders = await scanForAlbums(rootFolder, recursive, emitProgress);
+    }
+
+    // ---- Cache validation phase: figure out which folders are cache hits ----
+    const FINGERPRINT_CONCURRENCY = 12;
+    const fingerprints = new Map<string, string | null>();
+    let fpProcessed = 0;
+
+    for (let i = 0; i < folders.length; i += FINGERPRINT_CONCURRENCY) {
+      const chunk = folders.slice(i, i + FINGERPRINT_CONCURRENCY);
+      await Promise.all(
+        chunk.map(async (folder) => {
+          try {
+            // Fast shortcut: if folder has no audio anymore, skip fingerprinting
+            if (!(await folderHasAudioFiles(folder))) {
+              fingerprints.set(folder, null);
+              return;
+            }
+            const fp = await fingerprintAlbumFolder(folder);
+            fingerprints.set(folder, fp);
+          } catch {
+            fingerprints.set(folder, null);
+          } finally {
+            fpProcessed++;
+            emitProgress({
+              phase: 'parsing',
+              current: Math.min(fpProcessed, folders.length),
+              total: folders.length,
+              currentFolder: folder,
+              foldersFound: folders.length
+            });
+          }
+        })
+      );
+    }
+
+    // Categorize each folder: cache hit (valid) vs needs fresh parse
+    const albums: Album[] = [];
+    const freshParseNeeded: string[] = [];
+    let cacheHits = 0;
+
+    for (const folder of folders) {
+      const fp = fingerprints.get(folder);
+      const cachedEntry = cachedLibrary?.albums?.[folder];
+      if (fp && cachedEntry && cachedEntry.fingerprint === fp) {
+        albums.push(cachedEntry.album);
+        cacheHits++;
+      } else if (fp !== null) {
+        freshParseNeeded.push(folder);
+      }
+    }
+
+    console.log(`[ScanCache] ${cacheHits} cache hits, ${freshParseNeeded.length} albums need fresh parse (${folders.length} total)`);
+
+    // ---- Fresh parse phase: only for cache misses / changed folders ----
+    const CONCURRENCY = 8;
+    const cacheWrites: Array<{ folder: string; fp: string; album: Album }> = [];
+    let freshCount = 0;
+    const alreadyProcessed = folders.length - freshParseNeeded.length;
+
+    for (let i = 0; i < freshParseNeeded.length; i += CONCURRENCY) {
+      const chunk = freshParseNeeded.slice(i, i + CONCURRENCY);
       const parsedChunk = await Promise.all(
         chunk.map(async (folder) => {
           try {
+            emitProgress({
+              phase: 'parsing',
+              current: alreadyProcessed + freshCount,
+              total: folders.length,
+              currentFolder: folder,
+              foldersFound: folders.length
+            });
+
             const album = await Promise.race([
               parseAlbumFolder(folder, tempCoversDir),
               new Promise<never>((_, reject) =>
@@ -127,21 +342,43 @@ ipcMain.handle('scan-albums', async (_event, rootFolder: string, recursive: bool
           } catch (err: any) {
             console.error(`Skipping folder "${folder}": ${err.message}`);
             return null;
+          } finally {
+            freshCount++;
+            emitProgress({
+              phase: 'parsing',
+              current: Math.min(alreadyProcessed + freshCount, folders.length),
+              total: folders.length,
+              currentFolder: folder,
+              foldersFound: folders.length
+            });
           }
         })
       );
 
-      for (const item of parsedChunk) {
+      for (let j = 0; j < parsedChunk.length; j++) {
+        const item = parsedChunk[j];
         if (item) {
           albums.push(item);
+          const fp = fingerprints.get(chunk[j]);
+          if (fp) {
+            cacheWrites.push({ folder: chunk[j], fp, album: item });
+          }
         }
       }
     }
 
+    emitProgress({
+      phase: 'parsing',
+      current: folders.length,
+      total: folders.length,
+      currentFolder: '',
+      foldersFound: folders.length
+    });
+
     // Merge cached metadata edits to restore custom titles/artists
-    const cache = await queueManager.loadMetadataCache();
+    const metadataCache = await queueManager.loadMetadataCache();
     for (const album of albums) {
-      const cachedAlbum = cache[album.id];
+      const cachedAlbum = metadataCache[album.id];
       if (cachedAlbum) {
         if (cachedAlbum.albumName) album.albumName = cachedAlbum.albumName;
         if (cachedAlbum.year) album.year = cachedAlbum.year;
@@ -162,6 +399,35 @@ ipcMain.handle('scan-albums', async (_event, rootFolder: string, recursive: bool
           album.tracks.sort((a, b) => a.trackNumber - b.trackNumber);
         }
       }
+    }
+
+    // Persist new/updated scan cache entry for this library
+    try {
+      const libraryEntry = {
+        cachedAt: Date.now(),
+        recursive,
+        rootFolder,
+        albums: { ...(cachedLibrary?.albums || {}) } as Record<string, CachedAlbumEntry>
+      };
+      for (const { folder, fp, album } of cacheWrites) {
+        libraryEntry.albums[folder] = {
+          fingerprint: fp,
+          cachedAt: Date.now(),
+          album
+        };
+      }
+      // Drop entries for folders that no longer appear in the scan results
+      const folderSet = new Set(folders);
+      for (const existingFolder of Object.keys(libraryEntry.albums)) {
+        if (!folderSet.has(existingFolder)) {
+          delete libraryEntry.albums[existingFolder];
+        }
+      }
+      scanCache.libraries[cacheKey] = libraryEntry;
+      await saveScanCache(scanCache);
+      console.log('[ScanCache] Persisted scan cache.');
+    } catch (err) {
+      console.warn('[ScanCache] Failed to persist cache (non-fatal):', err);
     }
 
     return albums;
@@ -264,4 +530,43 @@ ipcMain.handle('open-video', async (_event, videoPath: string): Promise<void> =>
   }
   const error = await shell.openPath(videoPath);
   if (error) throw new Error(error);
+});
+
+ipcMain.handle('clear-scan-cache', async (): Promise<boolean> => {
+  try {
+    const p = scanCachePath();
+    if (fs.existsSync(p)) {
+      await fs.promises.unlink(p);
+    }
+    return true;
+  } catch (err) {
+    console.error('Failed to clear scan cache:', err);
+    return false;
+  }
+});
+
+ipcMain.handle('test-output-writable', async (_event, outDir: string): Promise<{ ok: boolean; message: string }> => {
+  try {
+    if (!outDir) {
+      return { ok: false, message: 'No output folder specified.' };
+    }
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { ensureOutputWritable } = require('./ffmpegService') as typeof import('./ffmpegService');
+    await ensureOutputWritable(outDir);
+    return { ok: true, message: `Output folder "${outDir}" is writable.` };
+  } catch (err: any) {
+    return { ok: false, message: err.message || String(err) };
+  }
+});
+
+ipcMain.handle('get-default-output-folder', async (): Promise<string> => {
+  const base = app.getPath('videos') || app.getPath('userData');
+  const out = path.join(base, 'AlbumForge Studio');
+  try {
+    await fs.promises.mkdir(out, { recursive: true });
+  } catch {
+    // Fallback to userData if Videos dir is unavailable for any reason
+    return path.join(app.getPath('userData'), 'Output');
+  }
+  return out;
 });

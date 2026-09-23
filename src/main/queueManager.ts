@@ -1,9 +1,9 @@
 import { app, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import { Album, RenderSettings, LogItem } from '../shared/types';
+import { Album, RenderSettings, LogItem, AlbumStatus } from '../shared/types';
 import { generateSlidesForAlbum } from './rendererService';
-import { renderAlbumVideo, killActiveFfmpegProcess } from './ffmpegService';
+import { renderAlbumVideo, killActiveFfmpegProcess, ensureOutputWritable } from './ffmpegService';
 
 class QueueManager {
   private queue: Album[] = [];
@@ -185,6 +185,14 @@ class QueueManager {
         await fs.promises.rm(albumTempDir, { recursive: true, force: true });
       }
       await fs.promises.mkdir(albumTempDir, { recursive: true });
+
+      // -----------------------------------------------------------------------
+      // Output-writable preflight. Runs BEFORE PNG slide generation so we
+      // don't waste seconds/minutes rendering frames for a destination we
+      // cannot actually write to (EPERM / sandbox / network-share ACLs).
+      // -----------------------------------------------------------------------
+      this.log('Verifying output folder is writable…', 'info');
+      await ensureOutputWritable(this.currentSettings!.outputFolder);
 
       // Step 1: Generate slide PNG images
       this.log('Generating slide PNG frames via offscreen window...', 'info');

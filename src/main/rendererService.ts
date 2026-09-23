@@ -455,14 +455,78 @@ export async function generateSlidesForAlbum(
     width: width,
     height: height,
     useContentSize: true,
+    enableLargerThanScreen: true,
+    skipTaskbar: true,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      offscreen: false
     }
   });
 
+  // Ensure the window has a compositing surface ready before we try to capture it
+  win.webContents.setBackgroundThrottling(false);
+
   const slidePaths: string[] = [];
   const slideHtmlPath = path.join(outputDir, 'slide_render.html');
+
+  const captureSlideFallback = async (cw: number, ch: number): Promise<Buffer> => {
+    const base64: string = await win.webContents.executeJavaScript(`
+      (async () => {
+        try {
+          const W = ${cw};
+          const H = ${ch};
+          const dpr = window.devicePixelRatio || 1;
+
+          // Grab the rendered HTML. Use documentElement since the slide is
+          // styled with <body> background (gradient + album colors).
+          const html = '<!doctype html><html>' +
+            document.documentElement.innerHTML + '</html>';
+
+          // Encode to SVG <foreignObject>. Use strict width/height so Chromium
+          // doesn't treat the data URI as a different viewport size.
+          const safeHtml = html.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&apos;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/`/g, '&#96;');
+          const ratioCss = 'width:' + W + 'px;height:' + H + 'px;transform:scale(' + (1 / dpr) + ');transform-origin:0 0;box-sizing:border-box;';
+          const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '">' +
+            '<foreignObject width="' + W + '" height="' + H + '">' +
+            '<div xmlns="http://www.w3.org/1999/xhtml" style="' + ratioCss + '">' +
+            '<meta charset="utf-8"/>' +
+            safeHtml +
+            '</div></foreignObject></svg>';
+          const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = W;
+          canvas.height = H;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('No 2D context');
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = () => reject(new Error('SVG decode error'));
+            img.src = url;
+          });
+          ctx.drawImage(img, 0, 0, W, H);
+          return canvas.toDataURL('image/png');
+        } catch (err) {
+          // Must return a string so the main process receives a real message
+          // even on failure (otherwise executeJavaScript resolves to undefined).
+          return 'ERR:' + (err && err.message ? err.message : String(err));
+        }
+      })();
+    `, true);
+
+    if (!base64 || typeof base64 !== 'string') {
+      throw new Error('Fallback canvas capture returned empty payload');
+    }
+    if (base64.startsWith('ERR:')) {
+      throw new Error(base64.slice(4));
+    }
+    const comma = base64.indexOf(',');
+    const data = comma >= 0 ? base64.slice(comma + 1) : base64;
+    if (!data) throw new Error('Fallback canvas capture returned empty payload');
+    return Buffer.from(data, 'base64');
+  };
 
   try {
     for (let i = 0; i < album.tracks.length; i++) {
@@ -484,10 +548,41 @@ export async function generateSlidesForAlbum(
       // Wait for layout paint (100ms for first slide to decode cover/fonts, 35ms for subsequent slides)
       await new Promise(resolve => setTimeout(resolve, i === 0 ? 100 : 35));
       
-      const image = await win.webContents.capturePage();
-      const resizedImage = image.resize({ width, height, quality: 'best' });
-      const pngBuffer = resizedImage.toPNG();
-      
+      let pngBuffer: Buffer | null = null;
+      let lastErr: unknown = null;
+
+      // Try native capturePage up to 3 times; fall back to in-page SVG rasterization
+      for (let attempt = 0; attempt < 3 && pngBuffer === null; attempt++) {
+        try {
+          // Force a frame commit so Chromium's compositor produces a surface
+          await win.webContents.beginFrameSubscription?.(() => {});
+          const image = await win.webContents.capturePage();
+          const resizedImage = image.resize({ width, height, quality: 'best' });
+          pngBuffer = resizedImage.toPNG();
+        } catch (err) {
+          lastErr = err;
+          console.warn(`capturePage attempt ${attempt + 1}/3 failed: ${(err as Error).message}`);
+          if (attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, 60 + attempt * 80));
+          }
+        }
+      }
+
+      if (pngBuffer === null) {
+        console.warn('Falling back to in-page SVG→Canvas rasterization for slide capture.');
+        try {
+          pngBuffer = await captureSlideFallback(width, height);
+        } catch (fallbackErr) {
+          const fbMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+          const nativeMsg = lastErr instanceof Error ? lastErr.message : String(lastErr ?? 'unknown');
+          throw new Error(
+            `Could not capture slide ${i + 1} for album "${album.albumName}". ` +
+            `Native capture: ${nativeMsg}; SVG fallback: ${fbMsg}. ` +
+            `Try restarting the app without --disable-gpu or --disable-software-rasterizer flags.`
+          );
+        }
+      }
+
       const slidePath = path.join(outputDir, `slide_${i}.png`);
       await fs.promises.writeFile(slidePath, pngBuffer);
       slidePaths.push(slidePath);
