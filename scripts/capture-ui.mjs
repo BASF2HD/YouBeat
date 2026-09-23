@@ -7,6 +7,10 @@ const openLogs = process.argv.includes('--logs');
 const verifyFfmpeg = process.argv.includes('--verify-ffmpeg');
 const selectCountArg = process.argv.find(argument => argument.startsWith('--select-count='));
 const selectCount = selectCountArg ? Number(selectCountArg.split('=')[1]) : 0;
+const scanLibrary = process.argv.includes('--scan');
+const selectFirst = process.argv.includes('--select-first');
+const selectAlbumArg = process.argv.find(argument => argument.startsWith('--select-album='));
+const selectAlbum = selectAlbumArg?.slice('--select-album='.length);
 const targets = await fetch('http://127.0.0.1:9222/json/list').then(response => response.json());
 const target = targets.find(item => item.title === 'AlbumForge Studio');
 
@@ -84,6 +88,39 @@ if (verifyFfmpeg) {
     returnByValue: true,
   });
   console.log(result.result.value);
+}
+
+if (scanLibrary) {
+  await send('Runtime.evaluate', {
+    expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Scan Library'))?.click()`,
+  });
+  const result = await send('Runtime.evaluate', {
+    expression: `new Promise((resolve, reject) => {
+      let attempts = 0;
+      const timer = setInterval(() => {
+        const rows = document.querySelectorAll('.library-table tbody tr');
+        if (rows.length) { clearInterval(timer); resolve(rows.length); }
+        else if (++attempts >= 100) { clearInterval(timer); reject(new Error('Library scan timed out')); }
+      }, 100);
+    })`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  console.log(`Scanned ${result.result.value} album(s)`);
+}
+
+if (selectFirst) {
+  await send('Runtime.evaluate', {
+    expression: `document.querySelector('.library-table tbody tr')?.click()`,
+  });
+  await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+if (selectAlbum) {
+  await send('Runtime.evaluate', {
+    expression: `Array.from(document.querySelectorAll('.library-table tbody tr')).find(row => row.textContent?.includes(${JSON.stringify(selectAlbum)}))?.click()`,
+  });
+  await new Promise(resolve => setTimeout(resolve, 150));
 }
 
 if (selectCount > 0) {

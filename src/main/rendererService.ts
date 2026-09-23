@@ -256,11 +256,12 @@ export function getSlideHTML(
         .cover-art-container.jewel-case-enabled .cover-art {
           position: absolute;
           z-index: 1;
-          top: 2.6%;
-          left: 10.6%;
-          width: 87%;
-          height: 95%;
-          object-fit: cover;
+          /* Match the square artwork to the transparent case opening. */
+          top: 2.36%;
+          left: 10.68%;
+          width: 87.65%;
+          height: 96.01%;
+          object-fit: contain;
         }
 
         .jewel-case-overlay {

@@ -852,11 +852,12 @@ body.preview-resizing .workspace-content {
 .preview-cover-art-container.jewel-case-enabled .preview-cover-placeholder {
   position: absolute;
   z-index: 1;
-  top: 2.6%;
-  left: 10.6%;
-  width: 87%;
-  height: 95%;
-  object-fit: cover;
+  /* The transparent opening is x=348..3243, y=71..2958 in a 3295x3008 case. */
+  top: 2.36%;
+  left: 10.68%;
+  width: 87.65%;
+  height: 96.01%;
+  object-fit: contain;
 }
 
 .preview-jewel-case-overlay {
