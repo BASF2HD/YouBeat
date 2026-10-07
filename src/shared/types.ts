@@ -31,6 +31,8 @@ export interface RenderSettings {
   resolution: '1920x1080' | '1280x720';
   backgroundColor: string;
   fontFamily: string;
+  coverflowSongFontSize?: number;
+  coverflowAlbumFontSize?: number;
   activeColor: string;
   inactiveColor: string;
   artistItalic: boolean;

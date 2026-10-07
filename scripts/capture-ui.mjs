@@ -7,7 +7,12 @@ const openLogs = process.argv.includes('--logs');
 const openMix = process.argv.includes('--mix');
 const openYouTube = process.argv.includes('--youtube');
 const domOnly = process.argv.includes('--dom-only');
+const verifyMixControls = process.argv.includes('--verify-mix-controls');
+const verifyCoverflowMotion = process.argv.includes('--verify-coverflow-motion');
+const verifyCoverflowSettings = process.argv.includes('--verify-coverflow-settings');
+const scrollFontSettings = process.argv.includes('--scroll-font-settings');
 const coverflowTheme = process.argv.includes('--coverflow-theme');
+const classicTheme = process.argv.includes('--classic-theme');
 const mixSelectCountArg = process.argv.find(argument => argument.startsWith('--mix-select-count='));
 const mixSelectCount = mixSelectCountArg ? Number(mixSelectCountArg.split('=')[1]) : 0;
 const verifyFfmpeg = process.argv.includes('--verify-ffmpeg');
@@ -123,11 +128,18 @@ if (coverflowTheme) {
   await new Promise(resolve => setTimeout(resolve, 100));
 }
 
+if (classicTheme) {
+  await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Settings'))?.click()` });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await send('Runtime.evaluate', { expression: `document.querySelector('input[name="artwork-theme"][value="plain"]')?.click()` });
+  await new Promise(resolve => setTimeout(resolve, 100));
+}
+
 if (openMix || mixSelectCount > 0) {
   await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Mix Builder'))?.click()` });
   await new Promise(resolve => setTimeout(resolve, 100));
   if (mixSelectCount > 0) {
-    await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('.mix-song-panel input[type="checkbox"]')).slice(0, ${mixSelectCount}).forEach(input => { if (!input.checked) input.click(); })` });
+    await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('.mix-song-row input[type="checkbox"]')).slice(0, ${mixSelectCount}).forEach(input => { if (!input.checked) input.click(); })` });
     await new Promise(resolve => setTimeout(resolve, 150));
   }
 }
@@ -144,6 +156,21 @@ if (openLogs) {
   await new Promise(resolve => setTimeout(resolve, 150));
 }
 
+if (scrollFontSettings) {
+  await send('Runtime.evaluate', { expression: `document.querySelector('.coverflow-size-settings')?.scrollIntoView({ block: 'center' })` });
+  await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+if (verifyCoverflowSettings) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(() => { const settings = document.querySelector('.coverflow-size-settings'); return { text: settings?.textContent, values: Array.from(settings?.querySelectorAll('input') || []).map(input => input.value) }; })()`,
+    returnByValue: true,
+  });
+  const coverflowSettings = result.result.value;
+  if (!coverflowSettings.text?.includes('34 px') || coverflowSettings.values?.[1] !== '34') throw new Error(`Cover Flow settings check failed: ${JSON.stringify(coverflowSettings)}`);
+  console.log(`Cover Flow settings check passed: ${JSON.stringify(coverflowSettings)}`);
+}
+
 if (verifyFfmpeg) {
   const result = await send('Runtime.evaluate', {
     expression: `window.api.getFfmpegVersion('ffmpeg')`,
@@ -154,6 +181,8 @@ if (verifyFfmpeg) {
 }
 
 if (selectFirst) {
+  await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Library'))?.click()` });
+  await new Promise(resolve => setTimeout(resolve, 100));
   await send('Runtime.evaluate', {
     expression: `document.querySelector('.library-table tbody tr')?.click()`,
   });
@@ -181,6 +210,64 @@ if (selectCount > 0) {
     })()`,
   });
   await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+if (verifyMixControls) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      const wait = () => new Promise(resolve => setTimeout(resolve, 80));
+      const rows = () => Array.from(document.querySelectorAll('section[aria-label="Mix order"] .mix-song-row'));
+      const header = document.querySelector('.mix-select-all input');
+      const matching = Number(document.querySelector('.mix-song-panel-heading small')?.textContent.match(/\\d+/)?.[0] || 0);
+      if (!header) return { error: 'Select-all checkbox missing' };
+      if (header.checked) { header.click(); await wait(); }
+      header.click(); await wait();
+      const selectedAll = rows().length === matching && matching > 0;
+      const beforeOrder = rows().slice(0, 3).map(row => row.querySelector('strong')?.textContent);
+      const transfer = new DataTransfer();
+      const dragHandle = rows()[0].querySelector('.mix-drag-handle');
+      dragHandle?.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+      await wait();
+      rows()[2]?.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+      rows()[2]?.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+      dragHandle?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: transfer }));
+      await wait();
+      const afterOrder = rows().slice(0, 3).map(row => row.querySelector('strong')?.textContent);
+      const dragMoved = beforeOrder[0] === afterOrder[2] && beforeOrder[1] === afterOrder[0];
+      const beforePreview = document.querySelector('.preview-transport span')?.textContent;
+      document.querySelector('button[aria-label="Next song"]')?.click();
+      await wait();
+      const afterPreview = document.querySelector('.preview-transport span')?.textContent;
+      return { matching, selectedAll, dragMoved, beforePreview, afterPreview, previewAdvanced: beforePreview !== afterPreview };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  const checks = result.result.value;
+  if (checks.error || !checks.selectedAll || !checks.dragMoved || !checks.previewAdvanced) throw new Error(`Mix UI check failed: ${JSON.stringify(checks)}`);
+  console.log(`Mix UI checks passed: ${JSON.stringify(checks)}`);
+}
+
+if (verifyCoverflowMotion) {
+  await send('Page.bringToFront');
+  const started = await send('Runtime.evaluate', {
+    expression: `(() => { const cover = document.querySelector('.preview-flow-center'); if (!cover) return null; window.__motionCover = cover; const before = cover.getBoundingClientRect().left; document.querySelector('button[aria-label="Next song"]')?.click(); return before; })()`,
+    returnByValue: true,
+  });
+  await new Promise(resolve => setTimeout(resolve, 50));
+  const middle = await send('Runtime.evaluate', {
+    expression: `(() => { const animations = window.__motionCover?.getAnimations() || []; animations.forEach(animation => { animation.currentTime = 210; }); return { left: window.__motionCover?.getBoundingClientRect().left, animations: animations.length }; })()`,
+    returnByValue: true,
+  });
+  await new Promise(resolve => setTimeout(resolve, 450));
+  const finished = await send('Runtime.evaluate', {
+    expression: `window.__motionCover?.getBoundingClientRect().left`,
+    returnByValue: true,
+  });
+  const motion = { before: started.result.value, midway: middle.result.value?.left, after: finished.result.value, animations: middle.result.value?.animations };
+  motion.movedContinuously = motion.animations > 0 && Math.abs(motion.midway - motion.before) > 0.5 && Math.abs(motion.after - motion.midway) > 0.5;
+  if (motion.error || !motion.movedContinuously) throw new Error(`Cover Flow motion check failed: ${JSON.stringify(motion)}`);
+  console.log(`Cover Flow motion check passed: ${JSON.stringify(motion)}`);
 }
 
 if (domOnly) {

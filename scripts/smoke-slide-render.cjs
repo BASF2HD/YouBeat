@@ -85,7 +85,7 @@ app.whenReady().then(async () => {
   console.log(`FFmpeg: ${ffmpegVersion}`);
   if (renderVideo) {
     const ffmpeg = resolveFfmpegPath('ffmpeg');
-    const trackDurations = longVideo ? [120] : [2.4, 2.8];
+    const trackDurations = longVideo ? [120] : Array.from({ length: Math.max(2, trackCount) }, (_, index) => index % 2 === 0 ? 2.4 : 2.8);
     album.tracks = trackDurations.map((duration, index) => {
       const filePath = path.join(outputDir, `smoke_${index}.wav`);
       const result = spawnSync(ffmpeg, [

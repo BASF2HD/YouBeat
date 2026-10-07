@@ -5,6 +5,7 @@ import { pathToFileURL } from 'url';
 import { Album, RenderSettings } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
 import { getArtworkTheme } from '../shared/artworkTheme';
+import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 
 /**
  * Escapes HTML characters to prevent XSS/rendering issues with metadata text.
@@ -105,6 +106,7 @@ export function getSlideHTML(
   }
 
   const artworkTheme = getArtworkTheme(settings);
+  const coverflowFontSizes = getCoverflowFontSizes(settings);
   coverImgSrc = coverSources[activeTrackIndex] || coverImgSrc;
   const jewelCaseEnabled = artworkTheme === 'jewel' && Boolean(jewelCaseSrc);
   const coverContainerClass = jewelCaseEnabled ? 'cover-art-container jewel-case-enabled' : 'cover-art-container';
@@ -112,13 +114,13 @@ export function getSlideHTML(
     ? `<img class="jewel-case-overlay" src="${escapeHtml(jewelCaseSrc!)}" />`
     : '';
   const coverflowCover = (index: number) => coverSources[index] || coverImgSrc;
-  const sideCount = Math.min(3, Math.floor((trackCount - 1) / 2));
+  const sideCount = getCoverflowSideCount(trackCount);
   const flowOffsets = Array.from({ length: sideCount * 2 + 1 }, (_, index) => index - sideCount);
   const coverflowCards = flowOffsets.map(offset => {
     const index = (activeTrackIndex + offset + trackCount) % trackCount;
     const source = escapeHtml(coverflowCover(index));
     const position = offset === 0 ? 'center' : `${offset < 0 ? 'left' : 'right'}-${Math.abs(offset)}`;
-    return `<div class="coverflow-item coverflow-${position}"><img class="coverflow-cover" src="${source}" /><img class="coverflow-reflection" src="${source}" /></div>`;
+    return `<div class="coverflow-item coverflow-${position}" data-flow-offset="${offset}"><img class="coverflow-cover" src="${source}" /><img class="coverflow-reflection" src="${source}" /></div>`;
   }).join('');
   const activeFlowTrack = album.tracks[activeTrackIndex];
   const flowAlbumName = activeFlowTrack?.album || album.albumName;
@@ -143,6 +145,7 @@ export function getSlideHTML(
       <div class="track-item ${activeClass}" style="color: ${color};">
         <div class="track-icon-col">
           <span class="track-num" style="font-size: ${layout.artistSize}px; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
+          ${isActive ? '<span class="track-play-mark" aria-hidden="true">▶</span>' : ''}
         </div>
         <div class="track-info-col">
           <div class="track-title" style="font-size: ${layout.titleSize}px;">${escapeHtml(track.title)}</div>
@@ -252,18 +255,24 @@ export function getSlideHTML(
         .coverflow-cover { border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 30px rgba(0,0,0,.8); }
         .coverflow-reflection { position: absolute; left: 0; top: 100%; transform: scaleY(-1); transform-origin: center; opacity: .32; -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
         .coverflow-center { left: 50%; z-index: 7; transform: translateX(-50%); }
-        .coverflow-left-1, .coverflow-right-1 { z-index: 6; bottom: 27.5%; width: min(40vw, 60vh); }
-        .coverflow-left-2, .coverflow-right-2 { z-index: 5; bottom: 26%; width: min(38vw, 57vh); }
-        .coverflow-left-3, .coverflow-right-3 { z-index: 4; bottom: 25%; width: min(36vw, 54vh); }
-        .coverflow-left-1 { left: 25%; transform: translateX(-50%) rotateY(50deg); }
-        .coverflow-right-1 { left: 75%; transform: translateX(-50%) rotateY(-50deg); }
-        .coverflow-left-2 { left: 12%; transform: translateX(-50%) rotateY(50deg); }
-        .coverflow-right-2 { left: 88%; transform: translateX(-50%) rotateY(-50deg); }
-        .coverflow-left-3 { left: 0%; transform: translateX(-50%) rotateY(50deg); }
-        .coverflow-right-3 { left: 100%; transform: translateX(-50%) rotateY(-50deg); }
+        /* Like NaviGlassPlayer, every side sleeve occupies the same plane and
+           height. Only its horizontal position/depth changes through the row. */
+        .coverflow-left-1, .coverflow-right-1, .coverflow-left-2, .coverflow-right-2, .coverflow-left-3, .coverflow-right-3, .coverflow-left-4, .coverflow-right-4 { bottom: 28%; width: min(42vw, 58vh); }
+        .coverflow-left-1, .coverflow-right-1 { z-index: 6; }
+        .coverflow-left-2, .coverflow-right-2 { z-index: 5; }
+        .coverflow-left-3, .coverflow-right-3 { z-index: 4; }
+        .coverflow-left-4, .coverflow-right-4 { z-index: 3; }
+        .coverflow-left-1 { left: 29%; transform: translateX(-50%) rotateY(52deg); }
+        .coverflow-right-1 { left: 71%; transform: translateX(-50%) rotateY(-52deg); }
+        .coverflow-left-2 { left: 22%; transform: translateX(-50%) rotateY(52deg); }
+        .coverflow-right-2 { left: 78%; transform: translateX(-50%) rotateY(-52deg); }
+        .coverflow-left-3 { left: 15%; transform: translateX(-50%) rotateY(52deg); }
+        .coverflow-right-3 { left: 85%; transform: translateX(-50%) rotateY(-52deg); }
+        .coverflow-left-4 { left: 8%; transform: translateX(-50%) rotateY(52deg); }
+        .coverflow-right-4 { left: 92%; transform: translateX(-50%) rotateY(-52deg); }
         .coverflow-caption { position: absolute; z-index: 10; left: 19%; right: 19%; top: calc(76% + 8px); display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; overflow: hidden; text-shadow: 0 2px 10px #000; }
-        .coverflow-caption strong { font-size: 40px; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .coverflow-caption small { font-size: 26px; color: rgba(255,255,255,.78); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .coverflow-caption strong { font-size: ${coverflowFontSizes.song}px; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .coverflow-caption small { font-size: ${coverflowFontSizes.album}px; color: rgba(255,255,255,.78); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Right Side: Track List */
         .right-panel {
@@ -321,17 +330,18 @@ export function getSlideHTML(
 
         .track-active {
           background: rgba(255, 255, 255, 0.06);
-          border-left: 4px solid #ffffff;
-          padding-left: 10px !important;
         }
 
         .track-icon-col {
-          width: 32px;
+          width: 48px;
           display: flex;
           align-items: center;
           justify-content: flex-start;
+          gap: 8px;
           flex-shrink: 0;
         }
+
+        .track-play-mark { color: ${settings.activeColor}; font-size: 14px; line-height: 1; }
 
         .track-num {
           font-weight: 600;
@@ -597,6 +607,45 @@ export async function generateSlidesForAlbum(
       const slidePath = path.join(outputDir, `slide_${i}.png`);
       await fs.promises.writeFile(slidePath, pngBuffer);
       slidePaths.push(slidePath);
+
+      if (getArtworkTheme(settings) === 'coverflow' && i > 0 && album.tracks[i].duration > 0.4) {
+        // Render a short gallery movement before the static part of this song.
+        // The 12 deterministic positions avoid timing-dependent CSS screenshots
+        // and keep the rest of a long track at its compact ~1 fps encoding.
+        for (let frame = 0; frame < 12; frame++) {
+          const progress = 1 - Math.pow(1 - frame / 12, 2);
+          await win.webContents.executeJavaScript(`(() => {
+            const progress = ${progress};
+            const centerWidth = Math.min(innerWidth * .5, innerHeight * .72);
+            const sideWidth = Math.min(innerWidth * .42, innerHeight * .58);
+            const target = offset => {
+              if (offset === 0) return { left: 50, bottom: 24, width: centerWidth, angle: 0, opacity: 1, depth: 0 };
+              const depth = Math.abs(offset);
+              const isLeft = offset < 0;
+              return { left: isLeft ? 29 - (depth - 1) * 7 : 71 + (depth - 1) * 7,
+                bottom: 28, width: sideWidth, angle: isLeft ? 52 : -52,
+                opacity: depth > 4 ? 0 : 1, depth };
+            };
+            document.querySelectorAll('.coverflow-item[data-flow-offset]').forEach(item => {
+              const offset = Number(item.getAttribute('data-flow-offset'));
+              const from = target(offset + 1);
+              const to = target(offset);
+              const mix = (a, b) => a + (b - a) * progress;
+              item.style.left = mix(from.left, to.left) + '%';
+              item.style.bottom = mix(from.bottom, to.bottom) + '%';
+              item.style.width = mix(from.width, to.width) + 'px';
+              item.style.transform = 'translateX(-50%) rotateY(' + mix(from.angle, to.angle) + 'deg)';
+              item.style.opacity = String(mix(from.opacity, to.opacity));
+              item.style.zIndex = String(7 - Math.min(from.depth, to.depth));
+            });
+          })()`);
+          await new Promise(resolve => setTimeout(resolve, 16));
+          const transitionImage = await win.webContents.capturePage();
+          if (transitionImage.isEmpty()) throw new Error(`Could not capture Cover Flow transition frame ${frame + 1} for song ${i + 1}`);
+          await fs.promises.writeFile(path.join(outputDir, `transition_${i}_${String(frame).padStart(2, '0')}.png`),
+            transitionImage.resize({ width, height, quality: 'best' }).toPNG());
+        }
+      }
     }
   } finally {
     win.close();

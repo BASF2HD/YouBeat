@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Album, RenderSettings, LogItem, Track, ScanProgressPayload, YouTubeChannel, YouTubePlaylist, YouTubeVideo, YouTubeLocalVideo } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
 import { getArtworkTheme } from '../shared/artworkTheme';
+import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 import appLogo from '../../resources/albumforge-icon.png';
 import jewelCaseOverlay from '../../resources/cd-jewel-case-overlay.png';
 
@@ -108,6 +109,8 @@ export default function App() {
     resolution: '1920x1080',
     backgroundColor: '#000000',
     fontFamily: 'Outfit',
+    coverflowSongFontSize: 40,
+    coverflowAlbumFontSize: 34,
     activeColor: '#ffffff',
     inactiveColor: '#888888',
     artistItalic: true,
@@ -133,6 +136,10 @@ export default function App() {
   const [mixSearch, setMixSearch] = useState('');
   const [mixTrackPaths, setMixTrackPaths] = useState<string[]>([]);
   const [mixPreviewIndex, setMixPreviewIndex] = useState(0);
+  const [albumPreviewIndex, setAlbumPreviewIndex] = useState(0);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [draggedMixPath, setDraggedMixPath] = useState<string | null>(null);
+  const [dragOverMixPath, setDragOverMixPath] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<ScanProgressPayload | null>(null);
 
@@ -170,6 +177,7 @@ export default function App() {
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const workspaceContentRef = useRef<HTMLDivElement>(null);
   const selectAllAlbumsRef = useRef<HTMLInputElement>(null);
+  const selectAllMixTracksRef = useRef<HTMLInputElement>(null);
 
   // Output folder preflight state (inline banner under Settings picker)
   const [outputCheck, setOutputCheck] = useState<{ checking: boolean; ok: boolean | null; message: string | null }>({
@@ -504,15 +512,21 @@ export default function App() {
       : [...previous, filePath]);
   };
 
+  const reorderMixTrack = (sourcePath: string, targetPath: string) => {
+    const source = mixTrackPaths.indexOf(sourcePath);
+    const target = mixTrackPaths.indexOf(targetPath);
+    if (source < 0 || target < 0 || source === target) return;
+    const activePath = mixTrackPaths[mixPreviewIndex];
+    const next = [...mixTrackPaths];
+    next.splice(target, 0, next.splice(source, 1)[0]);
+    setMixTrackPaths(next);
+    setMixPreviewIndex(Math.max(0, next.indexOf(activePath)));
+  };
+
   const moveMixTrack = (index: number, direction: -1 | 1) => {
-    setMixTrackPaths(previous => {
-      const target = index + direction;
-      if (target < 0 || target >= previous.length) return previous;
-      const next = [...previous];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-    setMixPreviewIndex(index + direction);
+    const target = index + direction;
+    if (target < 0 || target >= mixTrackPaths.length) return;
+    reorderMixTrack(mixTrackPaths[index], mixTrackPaths[target]);
   };
 
   // Actions
@@ -760,6 +774,23 @@ export default function App() {
   // Active elements
   const libraryMixTracks = scannedAlbums.flatMap(album =>
     album.tracks.map(track => ({ track, album })));
+  const filteredMixTracks = libraryMixTracks.filter(({ track, album }) =>
+    `${track.title} ${track.artist} ${album.albumName}`.toLowerCase().includes(mixSearch.toLowerCase()));
+  const visibleMixTracks = filteredMixTracks.slice(0, 500);
+  const selectedMixPaths = new Set(mixTrackPaths);
+  const allFilteredMixTracksSelected = filteredMixTracks.length > 0 && filteredMixTracks.every(({ track }) => selectedMixPaths.has(track.filePath));
+  const someFilteredMixTracksSelected = filteredMixTracks.some(({ track }) => selectedMixPaths.has(track.filePath));
+  useEffect(() => {
+    if (selectAllMixTracksRef.current) {
+      selectAllMixTracksRef.current.indeterminate = someFilteredMixTracksSelected && !allFilteredMixTracksSelected;
+    }
+  }, [allFilteredMixTracksSelected, someFilteredMixTracksSelected]);
+  const toggleSelectAllMixTracks = () => {
+    const matchingPaths = new Set(filteredMixTracks.map(({ track }) => track.filePath));
+    setMixTrackPaths(previous => allFilteredMixTracksSelected
+      ? previous.filter(filePath => !matchingPaths.has(filePath))
+      : [...previous, ...filteredMixTracks.map(({ track }) => track.filePath).filter(filePath => !previous.includes(filePath))]);
+  };
   const orderedMixTracks = mixTrackPaths.map(filePath =>
     libraryMixTracks.find(item => item.track.filePath === filePath)).filter((item): item is { track: Track; album: Album } => Boolean(item));
   const mixPreviewAlbum: Album | null = orderedMixTracks.length ? {
@@ -772,11 +803,32 @@ export default function App() {
     status: 'idle', progress: 0,
   } : null;
   const selectedAlbum = activeTab === 'mix' ? mixPreviewAlbum : albums.find(a => a.id === selectedAlbumId) || null;
-  const previewActiveIndex = activeTab === 'mix' ? Math.min(mixPreviewIndex, (selectedAlbum?.tracks.length || 1) - 1) : 0;
-  const previewFlowSideCount = Math.min(3, Math.floor(((selectedAlbum?.tracks.length || 1) - 1) / 2));
+  const previewActiveIndex = Math.min(activeTab === 'mix' ? mixPreviewIndex : albumPreviewIndex, (selectedAlbum?.tracks.length || 1) - 1);
+  const previewFlowSideCount = getCoverflowSideCount(selectedAlbum?.tracks.length || 0);
+  const coverflowFontSizes = getCoverflowFontSizes(settings);
   const previewTrackLayout = selectedAlbum
     ? getTrackLayout(selectedAlbum.tracks.length, previewActiveIndex, settings.resolution)
     : null;
+  const selectPreviewTrack = (index: number) => {
+    setPreviewPlaying(false);
+    if (activeTab === 'mix') setMixPreviewIndex(index);
+    else setAlbumPreviewIndex(index);
+  };
+  const stepPreviewTrack = (direction: number) => {
+    const count = selectedAlbum?.tracks.length || 0;
+    if (count < 2) return;
+    const setter = activeTab === 'mix' ? setMixPreviewIndex : setAlbumPreviewIndex;
+    setter(previous => (previous + direction + count) % count);
+  };
+  useEffect(() => { setAlbumPreviewIndex(0); setPreviewPlaying(false); }, [selectedAlbumId]);
+  useEffect(() => {
+    if (!previewPlaying || !showPreviewCanvas || !selectedAlbum || selectedAlbum.tracks.length < 2) return;
+    const timer = window.setInterval(() => {
+      const setter = activeTab === 'mix' ? setMixPreviewIndex : setAlbumPreviewIndex;
+      setter(previous => (previous + 1) % selectedAlbum.tracks.length);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [previewPlaying, showPreviewCanvas, activeTab, selectedAlbum?.id, selectedAlbum?.tracks.length]);
   const selectedVideoCodec = window.api.platform === 'darwin' &&
     !['auto', 'h264_videotoolbox', 'libx264'].includes(settings.videoCodec)
     ? 'auto'
@@ -1122,29 +1174,39 @@ export default function App() {
                 </div>
                 <div className="mix-builder-columns">
                   <section className="mix-song-panel" aria-label="Available songs">
-                    <h4>Library songs</h4>
-                    {libraryMixTracks.length ? libraryMixTracks.filter(({ track, album }) =>
-                      `${track.title} ${track.artist} ${album.albumName}`.toLowerCase().includes(mixSearch.toLowerCase())).slice(0, 500).map(({ track, album }) => (
+                    <div className="mix-song-panel-heading">
+                      <label className="mix-select-all">
+                        <input ref={selectAllMixTracksRef} type="checkbox" checked={allFilteredMixTracksSelected} disabled={filteredMixTracks.length === 0} onChange={toggleSelectAllMixTracks} aria-label={`Select all ${filteredMixTracks.length} matching songs`} />
+                        <strong>Library songs</strong>
+                      </label>
+                      <small>{filteredMixTracks.length} matching</small>
+                    </div>
+                    {libraryMixTracks.length ? visibleMixTracks.map(({ track, album }) => (
                         <label className="mix-song-row" key={track.filePath}>
-                          <input type="checkbox" checked={mixTrackPaths.includes(track.filePath)} onChange={() => toggleMixTrack(track.filePath)} />
+                          <input type="checkbox" checked={selectedMixPaths.has(track.filePath)} onChange={() => toggleMixTrack(track.filePath)} />
                           {album.coverPath && <img src={`file:///${album.coverPath.replace(/\\/g, '/')}`} alt="" />}
                           <span><strong>{track.title}</strong><small>{track.artist} · {album.albumName}</small></span>
                         </label>
                       )) : <p className="mix-empty">Scan your music library first, then return here to choose songs.</p>}
-                    {libraryMixTracks.length > 500 && <p className="mix-empty">Search to find songs beyond the first 500 results.</p>}
+                    {filteredMixTracks.length > 500 && <p className="mix-empty">Showing the first 500 matches. Select all includes all {filteredMixTracks.length} matching songs.</p>}
                   </section>
                   <section className="mix-song-panel" aria-label="Mix order">
                     <h4>Playback order · {orderedMixTracks.length} songs</h4>
                     {orderedMixTracks.length ? orderedMixTracks.map(({ track, album }, index) => (
-                      <div className={`mix-song-row ${previewActiveIndex === index ? 'is-previewing' : ''}`} key={track.filePath}>
-                        <button className="mix-preview-choice" onClick={() => setMixPreviewIndex(index)} title="Preview this song">{String(index + 1).padStart(2, '0')}</button>
+                      <div className={`mix-song-row ${previewActiveIndex === index ? 'is-previewing' : ''} ${dragOverMixPath === track.filePath && draggedMixPath !== track.filePath ? 'is-drop-target' : ''}`} key={track.filePath}
+                        onDragOver={event => { if (draggedMixPath && draggedMixPath !== track.filePath) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDragOverMixPath(track.filePath); } }}
+                        onDrop={event => { event.preventDefault(); reorderMixTrack(event.dataTransfer.getData('text/plain') || draggedMixPath || '', track.filePath); setDraggedMixPath(null); setDragOverMixPath(null); }}>
+                        <span className="mix-drag-handle" draggable="true" title={`Drag ${track.title} to reorder`} aria-label={`Drag ${track.title} to reorder`}
+                          onDragStart={event => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', track.filePath); setDraggedMixPath(track.filePath); }}
+                          onDragEnd={() => { setDraggedMixPath(null); setDragOverMixPath(null); }}>Drag</span>
+                        <button className="mix-preview-choice" onClick={() => selectPreviewTrack(index)} title="Preview this song">{String(index + 1).padStart(2, '0')}</button>
                         {album.coverPath && <img src={`file:///${album.coverPath.replace(/\\/g, '/')}`} alt="" />}
                         <span><strong>{track.title}</strong><small>{album.albumName}</small></span>
                         <button onClick={() => moveMixTrack(index, -1)} disabled={index === 0} aria-label={`Move ${track.title} up`}>↑</button>
                         <button onClick={() => moveMixTrack(index, 1)} disabled={index === orderedMixTracks.length - 1} aria-label={`Move ${track.title} down`}>↓</button>
                         <button onClick={() => toggleMixTrack(track.filePath)} aria-label={`Remove ${track.title}`}>×</button>
                       </div>
-                    )) : <p className="mix-empty">Select songs on the left. Click a number to preview its cover and highlight.</p>}
+                    )) : <p className="mix-empty">Select songs on the left. Click a number to preview it, or drag rows to reorder.</p>}
                   </section>
                 </div>
               </div>
@@ -1224,16 +1286,16 @@ export default function App() {
                 {!youtubeChannel ? (
                   <section className="youtube-card">
                     <h4>Sign in with Google</h4>
-                    <p>Enter your Google email if you want to preselect an account. Google will ask for your password in its own browser sign-in page—never in AlbumForge.</p>
+                    <p>Enter your email to preselect an account. Google handles the password and permission screen in your browser. After you approve, AlbumForge keeps an encrypted refresh token on this computer.</p>
                     <label className="input-group"><span className="input-label">Google email (optional)</span><input type="email" className="text-input" value={youtubeEmailHint} onChange={event => setYoutubeEmailHint(event.target.value)} placeholder="you@gmail.com" autoComplete="email" /></label>
                     <details className="youtube-setup" open={!youtubeClientReady}>
-                      <summary>One-time app connection setup</summary>
-                      <p>The client ID identifies AlbumForge to Google; it is <strong>not</strong> your email or password. Create a Google Cloud project, enable YouTube Data API v3, then create an OAuth client of type <strong>Desktop app</strong>. Copy its client ID here once on each computer.</p>
+                      <summary>Why an app ID is required</summary>
+                      <p>Google requires every app that uploads to YouTube to have a registered OAuth client ID. This is <strong>app-developer setup</strong>, not a Cloud account needed for each computer or YouTube user. An email or an encrypted password cannot replace it. If AlbumForge has no built-in ID, create one Google Cloud project, enable YouTube Data API v3, and create an OAuth client of type <strong>Desktop app</strong>. The same public client ID can be entered on your computers.</p>
                       <button type="button" className="btn btn-secondary" onClick={() => window.api.youtubeOpenSetup()}>Open Google Cloud clients</button>
                       <label className="input-group"><span className="input-label">Desktop app client ID</span><input className="text-input" value={youtubeClientId} onChange={event => setYoutubeClientId(event.target.value)} placeholder="...apps.googleusercontent.com" /></label>
                     </details>
                     <button className="btn btn-primary" onClick={handleYouTubeConnect} disabled={youtubeBusy || !youtubeClientReady}>{youtubeBusy ? 'Waiting for Google…' : 'Continue with Google'}</button>
-                    {!youtubeClientReady && <small>Finish the one-time setup above to enable Google sign-in.</small>}
+                    {!youtubeClientReady && <small>AlbumForge has no registered app ID bundled yet, so YouTube sign-in cannot start from email alone.</small>}
                     <small>New unverified API projects may have uploads restricted to Private until Google approves the project.</small>
                   </section>
                 ) : (
@@ -1422,7 +1484,7 @@ export default function App() {
                   </div>
                   <div className="input-group">
                     <span className="input-label">Frame rate</span>
-                    <span className="input-hint">About 1 fps · still slides stay crisp without encoding duplicate frames</span>
+                    <span className="input-hint">Still portions use about 1 fps; Cover Flow transitions use 30 fps</span>
                   </div>
                   <div className="input-group">
                     <span className="input-label">Video export quality</span>
@@ -1493,6 +1555,11 @@ export default function App() {
                     </label>
                   ))}
                 </div>
+                {getArtworkTheme(settings) === 'coverflow' && <div className="coverflow-size-settings">
+                  <label className="input-group"><span className="input-label">Song title size <strong>{coverflowFontSizes.song} px</strong></span><input type="range" min="24" max="72" step="2" value={coverflowFontSizes.song} onChange={event => updateSettings({ coverflowSongFontSize: Number(event.target.value) })} /></label>
+                  <label className="input-group"><span className="input-label">Album name and year size <strong>{coverflowFontSizes.album} px</strong></span><input type="range" min="18" max="48" step="2" value={coverflowFontSizes.album} onChange={event => updateSettings({ coverflowAlbumFontSize: Number(event.target.value) })} /></label>
+                  <small>Sizes apply to exported frames; the live preview scales them to fit.</small>
+                </div>}
 
                 <div className="settings-section-title">Predefined video color palettes</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
@@ -1716,11 +1783,11 @@ export default function App() {
                                   const index = (previewActiveIndex + offset + selectedAlbum.tracks.length) % selectedAlbum.tracks.length;
                                   const coverPath = selectedAlbum.tracks[index].coverPath || selectedAlbum.coverPath;
                                   const position = offset === 0 ? 'center' : `${offset < 0 ? 'left' : 'right'}-${Math.abs(offset)}`;
-                                  return <div key={offset} className={`preview-flow-item preview-flow-${position}`}>
+                                  return <div key={`${index}-${selectedAlbum.tracks[index].filePath}`} className={`preview-flow-item preview-flow-${position}`}>
                                     {coverPath ? <><img className="preview-flow-cover" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /><img className="preview-flow-reflection" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /></> : <div className="preview-flow-fallback">AF</div>}
                                   </div>;
                                 })}
-                                <div className="preview-coverflow-caption"><strong>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small>{selectedAlbum.tracks[previewActiveIndex]?.album || selectedAlbum.albumName} | {selectedAlbum.tracks[previewActiveIndex]?.year || selectedAlbum.year}</small></div>
+                                <div className="preview-coverflow-caption"><strong style={{ fontSize: `clamp(9px, ${(coverflowFontSizes.song / 12.8).toFixed(2)}cqw, ${Math.round(coverflowFontSizes.song * .58)}px)` }}>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small style={{ fontSize: `clamp(8px, ${(coverflowFontSizes.album / 12.8).toFixed(2)}cqw, ${Math.round(coverflowFontSizes.album * .58)}px)` }}>{selectedAlbum.tracks[previewActiveIndex]?.album || selectedAlbum.albumName} | {selectedAlbum.tracks[previewActiveIndex]?.year || selectedAlbum.year}</small></div>
                               </div>
                             ) : <>
                             <div className="preview-left">
@@ -1760,9 +1827,15 @@ export default function App() {
                                     key={track.id}
                                     className={`preview-track-item ${i + previewTrackLayout!.start === previewActiveIndex ? 'preview-track-active' : ''}`}
                                     style={{ color: i + previewTrackLayout!.start === previewActiveIndex ? settings.activeColor : settings.inactiveColor }}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => selectPreviewTrack(i + previewTrackLayout!.start)}
+                                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPreviewTrack(i + previewTrackLayout!.start); } }}
+                                    aria-label={`Preview ${track.title}`}
                                   >
                                     <div className="preview-track-num-col">
                                       {String(track.trackNumber || i + previewTrackLayout!.start + 1).padStart(2, '0')}
+                                      {i + previewTrackLayout!.start === previewActiveIndex && <span className="preview-track-play-mark" aria-hidden="true">▶</span>}
                                     </div>
                                     <div className="preview-track-info-col">
                                       <div className="preview-track-title">{track.title}</div>
@@ -1780,9 +1853,16 @@ export default function App() {
                             </div>
                             </>}
                           </div>
+                          {selectedAlbum.tracks.length > 1 && <div className="preview-transport" aria-label="Song slide preview controls">
+                            <button type="button" onClick={() => stepPreviewTrack(-1)} aria-label="Previous song">‹</button>
+                            <button type="button" onClick={() => setPreviewPlaying(previous => !previous)} aria-label={previewPlaying ? 'Pause slide preview' : 'Play slide preview'}>{previewPlaying ? 'Pause' : 'Play slides'}</button>
+                            <button type="button" onClick={() => stepPreviewTrack(1)} aria-label="Next song">›</button>
+                            <input type="range" min={0} max={selectedAlbum.tracks.length - 1} value={previewActiveIndex} onChange={event => selectPreviewTrack(Number(event.target.value))} aria-label="Jump to song" />
+                            <span>{previewActiveIndex + 1} / {selectedAlbum.tracks.length}</span>
+                          </div>}
                           <div className="preview-stage-meta">
-                            <span><i /> Layout preview</span>
-                            <span>{settings.resolution} · static slides</span>
+                            <span><i /> Slide sequence preview · no audio</span>
+                            <span>{settings.resolution} · {getArtworkTheme(settings) === 'coverflow' ? 'animated covers' : 'static slides'}</span>
                           </div>
                         </div>
                       )}

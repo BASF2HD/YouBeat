@@ -8,6 +8,7 @@ import * as mm from 'music-metadata';
 import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
 import { getArtworkTheme } from '../shared/artworkTheme';
+import { getCoverflowFontSizes } from '../shared/coverflow';
 
 /**
  * Resolves the actual path to the ffmpeg executable.
@@ -355,8 +356,9 @@ export async function renderAlbumVideo(
 
   // Build final clean safe video and folder name: "Album Name (Year)"
   const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
-  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ' - Cover Flow Gallery v2'
-    : getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case' : '';
+  const coverflowSizes = getCoverflowFontSizes(settings);
+  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v4 T${coverflowSizes.song} A${coverflowSizes.album}`
+    : getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v2' : ' - Classic Cover v2';
   const audioSuffix = settings.audioCodec === 'aac' ? ' - AAC 384' : ' - Lossless';
   const mixSuffix = album.id.startsWith('mix-')
     ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`
@@ -443,11 +445,29 @@ export async function renderAlbumVideo(
     // Give fractional-length tracks an integral number of frames whose packet
     // durations add up to the track duration. A fixed 1 fps would round each
     // segment up to the next second and shift later slides out of sync.
-    const frameCount = Math.max(1, Math.ceil(duration));
-    const durationMs = Math.max(1, Math.round(duration * 1000));
+    const transitionPattern = path.join(tempDir, `transition_${i}_%02d.png`);
+    const hasCoverflowTransition = getArtworkTheme(settings) === 'coverflow' && i > 0 && duration > 0.4 &&
+      fs.existsSync(path.join(tempDir, `transition_${i}_00.png`));
+    const stillDuration = duration - (hasCoverflowTransition ? 0.4 : 0);
+    const frameCount = Math.max(1, Math.ceil(stillDuration));
+    const durationMs = Math.max(1, Math.round(stillDuration * 1000));
     const stillFrameRate = `${frameCount * 1000}/${durationMs}`;
 
-    const args = [
+    const args = hasCoverflowTransition ? [
+      '-y',
+      '-framerate', '30', '-start_number', '0', '-i', transitionPattern,
+      '-loop', '1', '-framerate', stillFrameRate, '-i', slide,
+      '-i', track.filePath,
+      '-filter_complex', '[0:v]format=yuv420p,setsar=1[move];[1:v]format=yuv420p,setsar=1[still];[move][still]concat=n=2:v=1:a=0[v]',
+      '-map', '[v]', '-map', '2:a:0',
+      '-pix_fmt', 'yuv420p',
+      ...codecArgs,
+      ...audioArgs,
+      '-fps_mode', 'vfr',
+      '-shortest',
+      '-video_track_timescale', '90000',
+      segmentPath
+    ] : [
       '-y',
       '-loop', '1',
       '-framerate', stillFrameRate,
