@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
-import { getTrackLayout } from '../shared/trackLayout';
+import { getTrackLayout, getTrackFontSizes } from '../shared/trackLayout';
 import { shuffleMixOrder } from '../shared/mixOrder';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
@@ -109,8 +109,11 @@ export default function App() {
     resolution: '1920x1080',
     backgroundColor: '#000000',
     fontFamily: 'Outfit',
-    coverflowSongFontSize: 40,
-    coverflowAlbumFontSize: 34,
+    coverflowSongFontSize: 52,
+    coverflowAlbumFontSize: 38,
+    coverflowDefaultsVersion: 1,
+    trackTitleFontSize: 40,
+    trackArtistFontSize: 20,
     activeColor: '#ffffff',
     inactiveColor: '#888888',
     artistItalic: true,
@@ -285,7 +288,17 @@ export default function App() {
     if (savedSettings) {
       try {
         const { fps: _obsoleteFps, ...parsed } = JSON.parse(savedSettings);
-        setSettings(prev => ({ ...prev, ...parsed, artworkTheme: parsed.artworkTheme || (parsed.useJewelCase ? 'jewel' : 'plain') }));
+        // Upgrade the old defaults once while retaining custom font sizes.
+        if (!parsed.coverflowDefaultsVersion) {
+          if (parsed.coverflowSongFontSize == null || parsed.coverflowSongFontSize === 40) parsed.coverflowSongFontSize = 52;
+          if (parsed.coverflowAlbumFontSize == null || parsed.coverflowAlbumFontSize === 34) parsed.coverflowAlbumFontSize = 38;
+          parsed.coverflowDefaultsVersion = 1;
+        }
+        setSettings(prev => {
+          const next = { ...prev, ...parsed, artworkTheme: parsed.artworkTheme || (parsed.useJewelCase ? 'jewel' : 'plain') };
+          localStorage.setItem('render_settings', JSON.stringify(next));
+          return next;
+        });
         if (parsed.outputFolder) persistedHasOutput = true;
       } catch (err) {
         console.error('Failed to parse saved settings:', err);
@@ -725,8 +738,9 @@ export default function App() {
   const previewActiveIndex = Math.min(activeTab === 'mix' ? mixPreviewIndex : albumPreviewIndex, (selectedAlbum?.tracks.length || 1) - 1);
   const previewFlowSideCount = getCoverflowSideCount(selectedAlbum?.tracks.length || 0);
   const coverflowFontSizes = getCoverflowFontSizes(settings);
+  const trackFontSizes = getTrackFontSizes(settings);
   const previewTrackLayout = selectedAlbum
-    ? getTrackLayout(selectedAlbum.tracks.length, previewActiveIndex, settings.resolution)
+    ? getTrackLayout(selectedAlbum.tracks.length, previewActiveIndex, settings.resolution, settings)
     : null;
   const selectPreviewTrack = (index: number) => {
     setPreviewPlaying(false);
@@ -1363,12 +1377,13 @@ export default function App() {
                     <select
                       className="select-input"
                       value={settings.audioCodec || 'alac'}
+                      aria-label="Audio encoding"
                       onChange={(e) => updateSettings({ audioCodec: e.target.value as RenderSettings['audioCodec'] })}
                     >
                       <option value="alac">Lossless ALAC — preserve source audio (larger MP4)</option>
                       <option value="aac">AAC-LC 384 kb/s — YouTube-friendly (lossy)</option>
                     </select>
-                    <span className="input-hint">Audio quality is independent of the video export-quality setting. Mixed-format songs are normalized to the highest source sample rate and channel count before ALAC encoding.</span>
+                    <span className="input-hint">{settings.audioCodec === 'aac' ? 'AAC is lossy. Choose Lossless ALAC for the best source-preserving local export. ' : 'Lossless ALAC avoids an additional lossy audio codec. '}Audio quality is independent of video quality. Mixed-format songs are resampled/upmixed to the highest source sample rate and channel count. YouTube processes uploads separately; lossless streaming cannot be guaranteed.</span>
                   </div>
                 </div>
 
@@ -1415,10 +1430,14 @@ export default function App() {
                     </label>
                   ))}
                 </div>
-                {getArtworkTheme(settings) === 'coverflow' && <div className="coverflow-size-settings">
+                {getArtworkTheme(settings) === 'coverflow' ? <div className="coverflow-size-settings">
                   <label className="input-group"><span className="input-label">Song title size <strong>{coverflowFontSizes.song} px</strong></span><input type="range" min="24" max="72" step="2" value={coverflowFontSizes.song} onChange={event => updateSettings({ coverflowSongFontSize: Number(event.target.value) })} /></label>
                   <label className="input-group"><span className="input-label">Album name and year size <strong>{coverflowFontSizes.album} px</strong></span><input type="range" min="18" max="48" step="2" value={coverflowFontSizes.album} onChange={event => updateSettings({ coverflowAlbumFontSize: Number(event.target.value) })} /></label>
-                  <small>Sizes apply to exported frames; the live preview scales them to fit.</small>
+                  <small>Sizes are based on 1080p and scale for 720p/preview. Captions stay within the centre cover width. Long titles and album names end in an ellipsis.</small>
+                </div> : <div className="coverflow-size-settings track-size-settings">
+                  <label className="input-group"><span className="input-label">Song list title size <strong>{trackFontSizes.title} px</strong></span><input aria-label="Song list title size" type="range" min="24" max="64" step="2" value={trackFontSizes.title} onChange={event => updateSettings({ trackTitleFontSize: Number(event.target.value) })} /></label>
+                  <label className="input-group"><span className="input-label">Artist name size <strong>{trackFontSizes.artist} px</strong></span><input aria-label="Artist name size" type="range" min="12" max="36" step="2" value={trackFontSizes.artist} onChange={event => updateSettings({ trackArtistFontSize: Number(event.target.value) })} /></label>
+                  <small>Sizes are based on 1080p and scale for 720p/preview. Rows grow with the text, using minimal gaps. Long lists follow the active song without shrinking your chosen sizes or hiding artist names.</small>
                 </div>}
 
                 <div className="settings-section-title">Predefined video color palettes</div>
@@ -1647,7 +1666,7 @@ export default function App() {
                                     {coverPath ? <><img className="preview-flow-cover" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /><img className="preview-flow-reflection" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /></> : <div className="preview-flow-fallback">AF</div>}
                                   </div>;
                                 })}
-                                <div className="preview-coverflow-caption"><strong style={{ fontSize: `clamp(9px, ${(coverflowFontSizes.song / 12.8).toFixed(2)}cqw, ${Math.round(coverflowFontSizes.song * .58)}px)` }}>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small style={{ fontSize: `clamp(8px, ${(coverflowFontSizes.album / 12.8).toFixed(2)}cqw, ${Math.round(coverflowFontSizes.album * .58)}px)` }}>{selectedAlbum.tracks[previewActiveIndex]?.album || selectedAlbum.albumName} | {selectedAlbum.tracks[previewActiveIndex]?.year || selectedAlbum.year}</small></div>
+                                <div className="preview-coverflow-caption"><strong style={{ fontSize: `${coverflowFontSizes.song / 19.2}cqw` }}>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small style={{ fontSize: `${coverflowFontSizes.album / 19.2}cqw` }}>{selectedAlbum.tracks[previewActiveIndex]?.album || selectedAlbum.albumName} | {selectedAlbum.tracks[previewActiveIndex]?.year || selectedAlbum.year}</small></div>
                               </div>
                             ) : <>
                             <div className="preview-left">
@@ -1681,7 +1700,7 @@ export default function App() {
                                 style={{
                                   gridTemplateRows: `repeat(${previewTrackLayout!.rows}, minmax(0, 1fr))`,
                                   maxHeight: `${previewTrackLayout!.rows * previewTrackLayout!.rowHeight / previewTrackLayout!.frameWidth * 100}cqw`,
-                                  fontSize: `${previewTrackLayout!.artistSize / previewTrackLayout!.frameWidth * 100}cqw`,
+                                  fontSize: `${previewTrackLayout!.metaSize / previewTrackLayout!.frameWidth * 100}cqw`,
                                 }}
                               >
                                 {selectedAlbum.tracks.slice(previewTrackLayout!.start, previewTrackLayout!.end).map((track, i) => (
@@ -1702,7 +1721,7 @@ export default function App() {
                                     <div className="preview-track-info-col">
                                       <div className="preview-track-title" style={{ fontSize: `${previewTrackLayout!.titleSize / previewTrackLayout!.frameWidth * 100}cqw` }}>{track.title}</div>
                                       {!previewTrackLayout!.compact &&
-                                        <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
+                                        <div className="preview-track-artist" style={{ fontSize: `${previewTrackLayout!.artistSize / previewTrackLayout!.frameWidth * 100}cqw`, fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
                                           {track.artist}
                                         </div>}
                                     </div>

@@ -9,6 +9,7 @@ import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes } from '../shared/coverflow';
+import { getTrackFontSizes } from '../shared/trackLayout';
 
 /**
  * Resolves the actual path to the ffmpeg executable.
@@ -357,8 +358,9 @@ export async function renderAlbumVideo(
   // Build final clean safe video and folder name: "Album Name (Year)"
   const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
   const coverflowSizes = getCoverflowFontSizes(settings);
-  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v5 T${coverflowSizes.song} A${coverflowSizes.album}`
-    : getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v4' : ' - Classic Cover v4';
+  const trackSizes = getTrackFontSizes(settings);
+  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v6 T${coverflowSizes.song} A${coverflowSizes.album}`
+    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v5' : ' - Classic Cover v5'} T${trackSizes.title} A${trackSizes.artist}`;
   const audioSuffix = settings.audioCodec === 'aac' ? ' - AAC 384' : ' - Lossless';
   const mixSuffix = album.id.startsWith('mix-')
     ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`

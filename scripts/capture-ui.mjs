@@ -11,6 +11,9 @@ const verifyShuffle = process.argv.includes('--verify-shuffle');
 const verifySelectionCards = process.argv.includes('--verify-selection-cards');
 const verifyCoverflowMotion = process.argv.includes('--verify-coverflow-motion');
 const verifyCoverflowSettings = process.argv.includes('--verify-coverflow-settings');
+const verifyTrackSettings = process.argv.includes('--verify-track-settings');
+const losslessAudio = process.argv.includes('--lossless-audio');
+const verifyCoverflowCaption = process.argv.includes('--verify-coverflow-caption');
 const scrollFontSettings = process.argv.includes('--scroll-font-settings');
 const coverflowTheme = process.argv.includes('--coverflow-theme');
 const classicTheme = process.argv.includes('--classic-theme');
@@ -163,8 +166,26 @@ if (verifyCoverflowSettings) {
     returnByValue: true,
   });
   const coverflowSettings = result.result.value;
-  if (!coverflowSettings.text?.includes('34 px') || coverflowSettings.values?.[1] !== '34') throw new Error(`Cover Flow settings check failed: ${JSON.stringify(coverflowSettings)}`);
+  if (coverflowSettings.values?.[0] !== '52' || coverflowSettings.values?.[1] !== '38') throw new Error(`Cover Flow settings check failed: ${JSON.stringify(coverflowSettings)}`);
   console.log(`Cover Flow settings check passed: ${JSON.stringify(coverflowSettings)}`);
+}
+
+if (losslessAudio) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      [...document.querySelectorAll('button')].find(button => button.textContent.includes('Settings'))?.click();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const input = document.querySelector('select[aria-label="Audio encoding"]');
+      const previous = input?.value;
+      if (!input) return { error: 'Audio encoding selector missing' };
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(input, 'alac');
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return { previous, current: input.value, saved: JSON.parse(localStorage.getItem('render_settings')).audioCodec };
+    })()`, awaitPromise: true, returnByValue: true,
+  });
+  if (result.result.value?.saved !== 'alac') throw new Error(`Lossless settings check failed: ${JSON.stringify(result.result.value)}`);
+  console.log(`Lossless audio selected: ${JSON.stringify(result.result.value)}`);
 }
 
 if (verifyFfmpeg) {
@@ -206,6 +227,66 @@ if (selectCount > 0) {
     })()`,
   });
   await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+if (verifyTrackSettings) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      const wait = () => new Promise(resolve => setTimeout(resolve, 120));
+      [...document.querySelectorAll('button')].find(button => button.textContent.includes('Settings'))?.click(); await wait();
+      const inputs = [...document.querySelectorAll('.track-size-settings input')];
+      if (inputs.length !== 2) return { error: 'Track font controls missing' };
+      const original = inputs.map(input => input.value);
+      const measure = () => {
+        const row = document.querySelector('.preview-track-item');
+        return { row: row?.getBoundingClientRect().height,
+          title: parseFloat(getComputedStyle(document.querySelector('.preview-track-title')).fontSize),
+          artist: parseFloat(getComputedStyle(document.querySelector('.preview-track-artist')).fontSize),
+          rows: document.querySelectorAll('.preview-track-item').length };
+      };
+      const before = measure();
+      const set = (input, value) => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set(inputs[0], '64'); set(inputs[1], '36'); await wait();
+      const after = measure(), saved = JSON.parse(localStorage.getItem('render_settings'));
+      const next = document.querySelector('button[aria-label="Next song"]');
+      for (let index = 0; index < 15; index++) { next?.click(); await wait(); }
+      const activeVisible = Boolean(document.querySelector('.preview-track-active'));
+      const list = document.querySelector('.preview-tracklist').getBoundingClientRect();
+      const rowsFit = [...document.querySelectorAll('.preview-track-item')].every(row => row.getBoundingClientRect().bottom <= list.bottom + 1);
+      const currentInputs = [...document.querySelectorAll('.track-size-settings input')];
+      currentInputs.forEach((input, index) => set(input, original[index])); await wait();
+      return { original, before, after, activeVisible, rowsFit, persisted: saved.trackTitleFontSize === 64 && saved.trackArtistFontSize === 36,
+        expanded: after.row > before.row && after.title > before.title && after.artist > before.artist && after.rows < before.rows };
+    })()`, awaitPromise: true, returnByValue: true,
+  });
+  const checks = result.result.value;
+  if (checks.error || !checks.persisted || !checks.expanded || !checks.activeVisible || !checks.rowsFit) throw new Error(`Track typography UI check failed: ${JSON.stringify(checks)}`);
+  console.log(`Track typography UI checks passed: ${JSON.stringify(checks)}`);
+}
+
+if (verifyCoverflowCaption) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(() => {
+      const cover = document.querySelector('.preview-flow-center').getBoundingClientRect();
+      const caption = document.querySelector('.preview-coverflow-caption');
+      const bounds = caption.getBoundingClientRect();
+      const lines = [...caption.children].map(text => {
+        const original = text.textContent; text.textContent = 'A long song or album name that exceeds the centre cover width '.repeat(10);
+        const style = getComputedStyle(text), box = text.getBoundingClientRect();
+        const check = { ellipsis: style.textOverflow === 'ellipsis', overflows: text.scrollWidth > text.clientWidth,
+          inside: box.left >= cover.left - 1 && box.right <= cover.right + 1 };
+        text.textContent = original; return check;
+      });
+      return { bounded: bounds.left >= cover.left - 1 && bounds.right <= cover.right + 1, lines };
+    })()`, returnByValue: true,
+  });
+  const checks = result.result.value;
+  if (!checks.bounded || !checks.lines.every(line => line.ellipsis && line.overflows && line.inside)) throw new Error(`Cover Flow caption check failed: ${JSON.stringify(checks)}`);
+  console.log(`Cover Flow caption checks passed: ${JSON.stringify(checks)}`);
 }
 
 if (verifyMixControls) {

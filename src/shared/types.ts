@@ -33,6 +33,9 @@ export interface RenderSettings {
   fontFamily: string;
   coverflowSongFontSize?: number;
   coverflowAlbumFontSize?: number;
+  coverflowDefaultsVersion?: number;
+  trackTitleFontSize?: number;
+  trackArtistFontSize?: number;
   activeColor: string;
   inactiveColor: string;
   artistItalic: boolean;

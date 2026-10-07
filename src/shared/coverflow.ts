@@ -7,8 +7,8 @@ const clampFontSize = (value: number | undefined, fallback: number, min: number,
 
 export function getCoverflowFontSizes(settings: RenderSettings) {
   return {
-    song: clampFontSize(settings.coverflowSongFontSize, 40, 24, 72),
-    album: clampFontSize(settings.coverflowAlbumFontSize, 34, 18, 48),
+    song: clampFontSize(settings.coverflowSongFontSize, 52, 24, 72),
+    album: clampFontSize(settings.coverflowAlbumFontSize, 38, 18, 48),
   };
 }
 

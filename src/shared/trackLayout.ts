@@ -1,34 +1,45 @@
-/** Keep the exported frame and the live preview on the same track window. */
-export function getTrackLayout(trackCount: number, activeTrackIndex: number, resolution: '1920x1080' | '1280x720') {
+import { RenderSettings } from './types';
+
+type TrackTypography = Pick<RenderSettings, 'trackTitleFontSize' | 'trackArtistFontSize'>;
+
+export function getTrackFontSizes(settings: TrackTypography = {}) {
+  const validSize = (value: number | undefined, fallback: number, min: number, max: number) =>
+    typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? Math.round(value) : fallback;
+  return {
+    title: validSize(settings.trackTitleFontSize, 40, 24, 64),
+    artist: validSize(settings.trackArtistFontSize, 20, 12, 36),
+  };
+}
+
+/** Preserve readable font sizes; advance the visible window with the active song. */
+export function getTrackLayout(trackCount: number, activeTrackIndex: number, resolution: '1920x1080' | '1280x720', settings: TrackTypography = {}) {
   const frameHeight = resolution === '1920x1080' ? 1080 : 720;
   const frameWidth = resolution === '1920x1080' ? 1920 : 1280;
   const scale = frameHeight / 1080;
-  // Keep song titles in one readable column. Dense lists omit the secondary
-  // artist line rather than shrinking every title or clipping the final rows.
-  const detailedLimit = frameHeight === 1080 ? 24 : 18;
-  const capacity = frameHeight === 1080 ? 36 : 24;
+  const fonts = getTrackFontSizes(settings);
+  const titleSize = fonts.title * scale;
+  const artistSize = fonts.artist * scale;
+  // Each row retains both lines plus only six reference pixels of breathing room.
+  const availableHeight = 900 * scale;
+  const rowHeight = titleSize * 1.15 + artistSize * 1.1 + 6 * scale;
+  const capacity = Math.max(1, Math.floor(availableHeight / rowHeight));
   const visibleCount = Math.min(trackCount, capacity);
   const rows = Math.max(1, visibleCount);
-  const compact = visibleCount > detailedLimit;
   const start = trackCount > capacity
     ? Math.min(Math.max(0, activeTrackIndex - Math.floor(capacity / 2)), trackCount - capacity)
     : 0;
   const end = start + visibleCount;
-  const availableHeight = frameHeight === 1080 ? 900 : 600;
-  // Do not spread a short playlist over the whole frame. Longer playlists
-  // compress to the available height while retaining the same preview/export sizing.
-  const rowHeight = Math.min(60 * scale, availableHeight / rows);
 
   return {
     start,
     end,
     rows,
-    compact,
+    compact: false,
     rowHeight,
     frameWidth,
     scale,
-    titleSize: compact ? Math.min(18 * scale, Math.max(13 * scale, rowHeight * 0.7))
-      : Math.min(26 * scale, Math.max(14 * scale, rowHeight * 0.48)),
-    artistSize: Math.min(16 * scale, Math.max(9 * scale, rowHeight * 0.26)),
+    titleSize,
+    artistSize,
+    metaSize: 20 * scale,
   };
 }

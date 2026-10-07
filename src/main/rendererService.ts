@@ -94,7 +94,7 @@ export function getSlideHTML(
   coverSources: string[] = []
 ): string {
   const trackCount = album.tracks.length;
-  const layout = getTrackLayout(trackCount, activeTrackIndex, settings.resolution);
+  const layout = getTrackLayout(trackCount, activeTrackIndex, settings.resolution, settings);
 
   // Cover image source (base64 or SVG placeholder)
   let coverImgSrc = '';
@@ -145,13 +145,13 @@ export function getSlideHTML(
       <div class="track-item ${activeClass}" style="color: ${color};">
         <div class="track-icon-col">
           <span class="track-play-mark" aria-hidden="true" style="visibility: ${isActive ? 'visible' : 'hidden'};">▶</span>
-          <span class="track-num" style="font-size: ${layout.artistSize}px; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
+          <span class="track-num" style="font-size: ${layout.metaSize}px; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
         </div>
         <div class="track-info-col">
           <div class="track-title" style="font-size: ${layout.titleSize}px;">${escapeHtml(track.title)}</div>
           ${layout.compact ? '' : `<div class="track-artist" style="font-size: ${layout.artistSize}px; ${artistStyle}">${escapeHtml(track.artist)}</div>`}
         </div>
-        <div class="track-duration" style="font-size: ${layout.artistSize}px; color: ${isActive ? color : 'rgba(255,255,255,0.3)'};">
+        <div class="track-duration" style="font-size: ${layout.metaSize}px; color: ${isActive ? color : 'rgba(255,255,255,0.3)'};">
           ${formatDuration(track.duration)}
         </div>
       </div>
@@ -270,9 +270,9 @@ export function getSlideHTML(
         .coverflow-right-3 { left: 85%; transform: translateX(-50%) rotateY(-52deg); }
         .coverflow-left-4 { left: 8%; transform: translateX(-50%) rotateY(52deg); }
         .coverflow-right-4 { left: 92%; transform: translateX(-50%) rotateY(-52deg); }
-        .coverflow-caption { position: absolute; z-index: 10; left: 19%; right: 19%; top: calc(76% + 8px); display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; overflow: hidden; text-shadow: 0 2px 10px #000; }
-        .coverflow-caption strong { font-size: ${coverflowFontSizes.song}px; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .coverflow-caption small { font-size: ${coverflowFontSizes.album}px; color: rgba(255,255,255,.78); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .coverflow-caption { position: absolute; z-index: 10; left: 50%; width: min(50vw, 72vh); transform: translateX(-50%); top: calc(76% + ${8 * layout.scale}px); padding: 0 ${8 * layout.scale}px; display: flex; flex-direction: column; gap: ${4 * layout.scale}px; align-items: center; text-align: center; overflow: hidden; text-shadow: 0 2px 10px #000; }
+        .coverflow-caption strong { font-size: ${coverflowFontSizes.song * layout.scale}px; line-height: 1.15; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .coverflow-caption small { font-size: ${coverflowFontSizes.album * layout.scale}px; line-height: 1.15; color: rgba(255,255,255,.78); width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Right Side: Track List */
         .right-panel {
