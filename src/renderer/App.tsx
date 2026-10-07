@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Album, RenderSettings, LogItem, Track, ScanProgressPayload, YouTubeChannel, YouTubePlaylist, YouTubeVideo, YouTubeLocalVideo } from '../shared/types';
+import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
@@ -11,7 +11,6 @@ const PREVIEW_PANE_MAX_WIDTH = 720;
 
 const clampPreviewPaneWidth = (width: number) =>
   Math.min(PREVIEW_PANE_MAX_WIDTH, Math.max(PREVIEW_PANE_MIN_WIDTH, width));
-const isGoogleClientId = (value: string) => /^[\w.-]+\.apps\.googleusercontent\.com$/.test(value.trim());
 
 // Supported font list for text layout
 const SYSTEM_FONTS = [
@@ -102,7 +101,7 @@ export const PREDEFINED_PALETTES: ColorPalette[] = [
 
 export default function App() {
   // Tabs routing state
-  const [activeTab, setActiveTab] = useState<'library' | 'mix' | 'queue' | 'logs' | 'settings' | 'youtube'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'mix' | 'queue' | 'logs' | 'settings'>('library');
 
   // General App settings
   const [settings, setSettings] = useState<RenderSettings>({
@@ -150,30 +149,6 @@ export default function App() {
   // Logging state
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [logsCopied, setLogsCopied] = useState(false);
-  const [youtubeClientId, setYoutubeClientId] = useState(() => {
-    const saved = localStorage.getItem('youtube_client_id') || '';
-    return isGoogleClientId(saved) ? saved : '';
-  });
-  const youtubeClientReady = isGoogleClientId(youtubeClientId);
-  const [youtubeEmailHint, setYoutubeEmailHint] = useState(() => {
-    const saved = localStorage.getItem('youtube_client_id') || '';
-    return !isGoogleClientId(saved) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saved) ? saved : '';
-  });
-  const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null);
-  const [youtubePlaylists, setYoutubePlaylists] = useState<YouTubePlaylist[]>([]);
-  const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
-  const [youtubeSelectedPlaylist, setYoutubeSelectedPlaylist] = useState<YouTubePlaylist | null>(null);
-  const [youtubePlaylistVideos, setYoutubePlaylistVideos] = useState<YouTubeVideo[]>([]);
-  const [youtubePlaylistVideosPage, setYoutubePlaylistVideosPage] = useState('');
-  const [youtubePlaylistPage, setYoutubePlaylistPage] = useState('');
-  const [youtubeVideoPage, setYoutubeVideoPage] = useState('');
-  const [youtubeVideo, setYoutubeVideo] = useState<YouTubeLocalVideo | null>(null);
-  const [youtubePrivacy, setYoutubePrivacy] = useState<'private' | 'unlisted' | 'public'>('private');
-  const [youtubeBusy, setYoutubeBusy] = useState(false);
-  const [youtubeUploading, setYoutubeUploading] = useState(false);
-  const [youtubeUploadProgress, setYoutubeUploadProgress] = useState(0);
-  const [youtubeUploadUrl, setYoutubeUploadUrl] = useState('');
-  const [youtubeError, setYoutubeError] = useState('');
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const workspaceContentRef = useRef<HTMLDivElement>(null);
   const selectAllAlbumsRef = useRef<HTMLInputElement>(null);
@@ -342,71 +317,6 @@ export default function App() {
       })();
     }
   }, []);
-
-  useEffect(() => {
-    const savedClientId = localStorage.getItem('youtube_client_id') || '';
-    if (savedClientId && !isGoogleClientId(savedClientId)) localStorage.removeItem('youtube_client_id');
-    window.api.youtubeStatus().then(channel => {
-      setYoutubeChannel(channel);
-      if (channel) Promise.all([window.api.youtubePlaylists(), window.api.youtubeVideos()]).then(([playlists, videos]) => {
-        setYoutubePlaylists(playlists.items); setYoutubePlaylistPage(playlists.nextPageToken || '');
-        setYoutubeVideos(videos.items); setYoutubeVideoPage(videos.nextPageToken || '');
-      }).catch(error => setYoutubeError(String(error)));
-    }).catch(error => setYoutubeError(String(error)));
-    return window.api.onYouTubeUploadProgress(setYoutubeUploadProgress);
-  }, []);
-
-  const handleYouTubeConnect = async () => {
-    setYoutubeBusy(true); setYoutubeError('');
-    try {
-      if (!youtubeClientReady) throw new Error('Complete the one-time setup with a valid Desktop app client ID first.');
-      const channel = await window.api.youtubeConnect(youtubeClientId.trim(), youtubeEmailHint.trim());
-      localStorage.setItem('youtube_client_id', youtubeClientId.trim());
-      setYoutubeChannel(channel);
-      const [playlists, videos] = await Promise.all([window.api.youtubePlaylists(), window.api.youtubeVideos()]);
-      setYoutubePlaylists(playlists.items); setYoutubePlaylistPage(playlists.nextPageToken || '');
-      setYoutubeVideos(videos.items); setYoutubeVideoPage(videos.nextPageToken || '');
-    } catch (error) { setYoutubeError(String(error)); }
-    finally { setYoutubeBusy(false); }
-  };
-
-  const handleYouTubeDisconnect = async () => {
-    if (!confirm('Disconnect this YouTube channel from AlbumForge on this computer?')) return;
-    setYoutubeBusy(true);
-    try { await window.api.youtubeDisconnect(); setYoutubeChannel(null); setYoutubePlaylists([]); setYoutubeVideos([]); setYoutubeSelectedPlaylist(null); setYoutubePlaylistVideos([]); setYoutubeError(''); }
-    catch (error) { setYoutubeError(String(error)); }
-    finally { setYoutubeBusy(false); }
-  };
-
-  const handleYouTubeSelectVideo = async () => {
-    try { const video = await window.api.youtubeSelectVideo(); if (video) { setYoutubeVideo(video); setYoutubeUploadUrl(''); } }
-    catch (error) { setYoutubeError(String(error)); }
-  };
-
-  const handleYouTubePlaylist = async (playlist: YouTubePlaylist) => {
-    setYoutubeError(''); setYoutubeSelectedPlaylist(playlist); setYoutubePlaylistVideos([]); setYoutubePlaylistVideosPage('');
-    try {
-      const page = await window.api.youtubePlaylistVideos(playlist.id);
-      setYoutubePlaylistVideos(page.items); setYoutubePlaylistVideosPage(page.nextPageToken || '');
-    } catch (error) { setYoutubeError(String(error)); }
-  };
-
-  const handleYouTubeUpload = async () => {
-    if (!youtubeVideo || !youtubeChannel) return;
-    setYoutubeError(''); setYoutubeUploadUrl(''); setYoutubeUploadProgress(0); setYoutubeUploading(true);
-    try {
-      const url = await window.api.youtubeUpload(youtubeVideo, youtubePrivacy);
-      setYoutubeUploadUrl(url);
-      const page = await window.api.youtubeVideos();
-      setYoutubeVideos(page.items); setYoutubeVideoPage(page.nextPageToken || '');
-    } catch (error) { setYoutubeError(String(error)); }
-    finally { setYoutubeUploading(false); }
-  };
-
-  const handleUploadRenderedVideo = async (filePath: string) => {
-    try { setYoutubeVideo(await window.api.youtubePrepareVideo(filePath)); setYoutubeUploadUrl(''); setActiveTab('youtube'); }
-    catch (error) { setYoutubeError(String(error)); setActiveTab('youtube'); }
-  };
 
   // Sync settings modifications to localStorage
   const updateSettings = (updated: Partial<RenderSettings>) => {
@@ -884,12 +794,6 @@ export default function App() {
           >
             <span>⚡</span> Queue {albums.filter(a => a.status === 'queued' || a.status === 'processing').length > 0 && <span className="queue-badge" style={{ background: 'var(--accent-primary)', fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '50%', color: 'white' }}>{albums.filter(a => a.status === 'queued' || a.status === 'processing').length}</span>}
           </button>
-          <button 
-            className={`nav-item ${activeTab === 'youtube' ? 'active' : ''}`}
-            onClick={() => setActiveTab('youtube')}
-          >
-            <span>▶</span> YouTube
-          </button>
           <button
             className={`nav-item ${activeTab === 'logs' ? 'active' : ''}`}
             onClick={() => setActiveTab('logs')}
@@ -939,7 +843,7 @@ export default function App() {
             </button>
           )}
 
-          {!showPreviewPane && activeTab !== 'youtube' && (
+          {!showPreviewPane && (
             <button 
               className="btn btn-secondary" 
               onClick={() => togglePreviewPane(true)} 
@@ -966,8 +870,8 @@ export default function App() {
         {/* Multi-Pane workspace body */}
         <div
           ref={workspaceContentRef}
-          className={`workspace-content ${activeTab === 'youtube' ? 'youtube-full-width' : !showPreviewPane ? 'preview-collapsed' : ''}`}
-          style={showPreviewPane && activeTab !== 'youtube' ? { gridTemplateColumns: `minmax(0, 1fr) ${previewPaneWidth}px` } : undefined}
+          className={`workspace-content ${!showPreviewPane ? 'preview-collapsed' : ''}`}
+          style={showPreviewPane ? { gridTemplateColumns: `minmax(0, 1fr) ${previewPaneWidth}px` } : undefined}
         >
           
           {/* Left panel context dependent */}
@@ -1250,7 +1154,6 @@ export default function App() {
                             {album.error && <div style={{ color: 'var(--accent-danger)', fontSize: '10px', marginTop: '4px' }}>{album.error}</div>}
                           </td>
                           <td className="queue-open-column">
-                            {album.status === 'completed' && album.outputVideoPath && <button type="button" className="queue-upload-video" onClick={() => handleUploadRenderedVideo(album.outputVideoPath!)} title="Prepare upload to YouTube">Upload</button>}
                             <button
                               type="button"
                               className="queue-open-video"
@@ -1275,64 +1178,6 @@ export default function App() {
                     <h3>No Active Renders</h3>
                     <p style={{ fontSize: '13px' }}>Select albums in the Library tab and trigger compilation to see progress lists.</p>
                   </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'youtube' && (
-              <div className="youtube-panel">
-                <div className="youtube-heading"><h3>YouTube Studio connection</h3><p>Browse your channel and upload rendered MP4s directly from AlbumForge.</p></div>
-                {youtubeError && <div className="youtube-error" role="alert">{youtubeError}</div>}
-                {!youtubeChannel ? (
-                  <section className="youtube-card">
-                    <h4>Sign in with Google</h4>
-                    <p>Enter your email to preselect an account. Google handles the password and permission screen in your browser. After you approve, AlbumForge keeps an encrypted refresh token on this computer.</p>
-                    <label className="input-group"><span className="input-label">Google email (optional)</span><input type="email" className="text-input" value={youtubeEmailHint} onChange={event => setYoutubeEmailHint(event.target.value)} placeholder="you@gmail.com" autoComplete="email" /></label>
-                    <details className="youtube-setup" open={!youtubeClientReady}>
-                      <summary>Why an app ID is required</summary>
-                      <p>Google requires every app that uploads to YouTube to have a registered OAuth client ID. This is <strong>app-developer setup</strong>, not a Cloud account needed for each computer or YouTube user. An email or an encrypted password cannot replace it. If AlbumForge has no built-in ID, create one Google Cloud project, enable YouTube Data API v3, and create an OAuth client of type <strong>Desktop app</strong>. The same public client ID can be entered on your computers.</p>
-                      <button type="button" className="btn btn-secondary" onClick={() => window.api.youtubeOpenSetup()}>Open Google Cloud clients</button>
-                      <label className="input-group"><span className="input-label">Desktop app client ID</span><input className="text-input" value={youtubeClientId} onChange={event => setYoutubeClientId(event.target.value)} placeholder="...apps.googleusercontent.com" /></label>
-                    </details>
-                    <button className="btn btn-primary" onClick={handleYouTubeConnect} disabled={youtubeBusy || !youtubeClientReady}>{youtubeBusy ? 'Waiting for Google…' : 'Continue with Google'}</button>
-                    {!youtubeClientReady && <small>AlbumForge has no registered app ID bundled yet, so YouTube sign-in cannot start from email alone.</small>}
-                    <small>New unverified API projects may have uploads restricted to Private until Google approves the project.</small>
-                  </section>
-                ) : (
-                  <>
-                    <section className="youtube-card youtube-account">
-                      {youtubeChannel.thumbnail && <img src={youtubeChannel.thumbnail} alt="" />}
-                      <span><strong>{youtubeChannel.title}</strong><small>Connected channel · {youtubeChannel.id}</small></span>
-                      <button className="btn btn-secondary" onClick={handleYouTubeDisconnect} disabled={youtubeBusy}>Disconnect</button>
-                    </section>
-                    <section className="youtube-card">
-                      <h4>Upload a video</h4>
-                      <button className="btn btn-secondary" onClick={handleYouTubeSelectVideo} disabled={youtubeUploading}>Choose local MP4</button>
-                      {youtubeVideo && <div className="youtube-upload-form">
-                        <small className="youtube-file-path">{youtubeVideo.path}</small>
-                        <label className="input-group"><span className="input-label">YouTube title</span><input className="text-input" value={youtubeVideo.title} maxLength={100} onChange={event => setYoutubeVideo({ ...youtubeVideo, title: event.target.value })} /></label>
-                        <label className="input-group"><span className="input-label">Description and song chapters</span><textarea className="text-input" rows={6} maxLength={5000} value={youtubeVideo.description} onChange={event => setYoutubeVideo({ ...youtubeVideo, description: event.target.value })} /></label>
-                        <label className="input-group"><span className="input-label">Visibility</span><select className="select-input" value={youtubePrivacy} onChange={event => setYoutubePrivacy(event.target.value as typeof youtubePrivacy)}><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select></label>
-                        <small>Google may force uploads from an unverified API project to Private regardless of this selection. Check the final visibility in YouTube Studio.</small>
-                        <div className="youtube-upload-actions"><button className="btn btn-primary" onClick={handleYouTubeUpload} disabled={youtubeUploading || !youtubeVideo.title.trim()}>{youtubeUploading ? `Uploading ${youtubeUploadProgress}%` : 'Upload to YouTube'}</button>{youtubeUploading && <button className="btn btn-secondary" onClick={() => window.api.youtubeCancelUpload()}>Cancel upload</button>}</div>
-                        {youtubeUploading && <progress value={youtubeUploadProgress} max={100} />}
-                      </div>}
-                      {youtubeUploadUrl && <div className="youtube-success">Upload complete: {youtubeUploadUrl} <button className="btn btn-secondary" onClick={() => window.api.copyText(youtubeUploadUrl)}>Copy link</button></div>}
-                    </section>
-                    <div className="youtube-library-grid">
-                      <section className="youtube-card">
-                        <h4>Your playlists</h4>
-                        {youtubePlaylists.map(item => <button type="button" className={`youtube-list-row youtube-playlist-button ${youtubeSelectedPlaylist?.id === item.id ? 'active' : ''}`} key={item.id} onClick={() => handleYouTubePlaylist(item)}><strong>{item.title}</strong><small>{item.itemCount} videos</small></button>)}
-                        {youtubePlaylistPage && <button className="btn btn-secondary" onClick={async () => { try { const page = await window.api.youtubePlaylists(youtubePlaylistPage); setYoutubePlaylists(previous => [...previous, ...page.items]); setYoutubePlaylistPage(page.nextPageToken || ''); } catch (error) { setYoutubeError(String(error)); } }}>Load more playlists</button>}
-                        {youtubeSelectedPlaylist && <div className="youtube-playlist-contents">
-                          <h4>{youtubeSelectedPlaylist.title}</h4>
-                          {youtubePlaylistVideos.map(item => <div className="youtube-list-row" key={item.id}>{item.thumbnail && <img src={item.thumbnail} alt="" />}<strong>{item.title}</strong></div>)}
-                          {youtubePlaylistVideosPage && <button className="btn btn-secondary" onClick={async () => { try { const page = await window.api.youtubePlaylistVideos(youtubeSelectedPlaylist.id, youtubePlaylistVideosPage); setYoutubePlaylistVideos(previous => [...previous, ...page.items]); setYoutubePlaylistVideosPage(page.nextPageToken || ''); } catch (error) { setYoutubeError(String(error)); } }}>Load more playlist videos</button>}
-                        </div>}
-                      </section>
-                      <section className="youtube-card"><h4>Your uploaded videos</h4>{youtubeVideos.map(item => <div className="youtube-list-row" key={item.id}>{item.thumbnail && <img src={item.thumbnail} alt="" />}<strong>{item.title}</strong></div>)}{youtubeVideoPage && <button className="btn btn-secondary" onClick={async () => { try { const page = await window.api.youtubeVideos(youtubeVideoPage); setYoutubeVideos(previous => [...previous, ...page.items]); setYoutubeVideoPage(page.nextPageToken || ''); } catch (error) { setYoutubeError(String(error)); } }}>Load more videos</button>}</section>
-                    </div>
-                  </>
                 )}
               </div>
             )}
@@ -1709,7 +1554,7 @@ export default function App() {
           </div>
 
           {/* Right sidebar: Live Visual Layout Preview */}
-          {activeTab !== 'youtube' && (showPreviewPane ? (
+          {showPreviewPane ? (
             <aside className="preview-pane-shell">
               <div
                 className="preview-resize-handle"
@@ -1834,8 +1679,8 @@ export default function App() {
                                     aria-label={`Preview ${track.title}`}
                                   >
                                     <div className="preview-track-num-col">
-                                      {String(track.trackNumber || i + previewTrackLayout!.start + 1).padStart(2, '0')}
-                                      {i + previewTrackLayout!.start === previewActiveIndex && <span className="preview-track-play-mark" aria-hidden="true">▶</span>}
+                                      <span className="preview-track-play-mark" aria-hidden="true" style={{ visibility: i + previewTrackLayout!.start === previewActiveIndex ? 'visible' : 'hidden' }}>▶</span>
+                                      <span>{String(track.trackNumber || i + previewTrackLayout!.start + 1).padStart(2, '0')}</span>
                                     </div>
                                     <div className="preview-track-info-col">
                                       <div className="preview-track-title">{track.title}</div>
@@ -1919,7 +1764,7 @@ export default function App() {
               </button>
               <span className="collapsed-preview-text">Live Preview</span>
             </aside>
-          ))}
+          )}
 
         </div>
       </main>

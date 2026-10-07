@@ -144,8 +144,8 @@ export function getSlideHTML(
     return `
       <div class="track-item ${activeClass}" style="color: ${color};">
         <div class="track-icon-col">
+          <span class="track-play-mark" aria-hidden="true" style="visibility: ${isActive ? 'visible' : 'hidden'};">▶</span>
           <span class="track-num" style="font-size: ${layout.artistSize}px; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
-          ${isActive ? '<span class="track-play-mark" aria-hidden="true">▶</span>' : ''}
         </div>
         <div class="track-info-col">
           <div class="track-title" style="font-size: ${layout.titleSize}px;">${escapeHtml(track.title)}</div>
@@ -249,7 +249,7 @@ export function getSlideHTML(
         }
 
         .container.coverflow-layout { display: block; padding: 0; background: #000; }
-        .coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 1200px; overflow: hidden; background: #000; }
+        .coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 93.75vw; overflow: hidden; background: #000; }
         .coverflow-item { position: absolute; width: min(50vw, 72vh); aspect-ratio: 1; bottom: 24%; transform-style: preserve-3d; }
         .coverflow-cover, .coverflow-reflection { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
         .coverflow-cover { border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 30px rgba(0,0,0,.8); }
@@ -333,15 +333,15 @@ export function getSlideHTML(
         }
 
         .track-icon-col {
-          width: 48px;
-          display: flex;
+          width: 64px;
+          display: grid;
+          grid-template-columns: 22px 1fr;
           align-items: center;
-          justify-content: flex-start;
           gap: 8px;
           flex-shrink: 0;
         }
 
-        .track-play-mark { color: ${settings.activeColor}; font-size: 14px; line-height: 1; }
+        .track-play-mark { color: ${settings.activeColor}; font-size: 22px; line-height: 1; }
 
         .track-num {
           font-weight: 600;

@@ -5,7 +5,6 @@ const enableJewelCase = process.argv.includes('--enable-jewel-case');
 const openSettings = process.argv.includes('--settings');
 const openLogs = process.argv.includes('--logs');
 const openMix = process.argv.includes('--mix');
-const openYouTube = process.argv.includes('--youtube');
 const domOnly = process.argv.includes('--dom-only');
 const verifyMixControls = process.argv.includes('--verify-mix-controls');
 const verifyCoverflowMotion = process.argv.includes('--verify-coverflow-motion');
@@ -142,11 +141,6 @@ if (openMix || mixSelectCount > 0) {
     await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('.mix-song-row input[type="checkbox"]')).slice(0, ${mixSelectCount}).forEach(input => { if (!input.checked) input.click(); })` });
     await new Promise(resolve => setTimeout(resolve, 150));
   }
-}
-
-if (openYouTube) {
-  await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('YouTube'))?.click()` });
-  await new Promise(resolve => setTimeout(resolve, 150));
 }
 
 if (openLogs) {

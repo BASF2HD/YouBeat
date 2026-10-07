@@ -13,6 +13,7 @@ const useAac = process.argv.includes('--aac');
 const hiResAudio = process.argv.includes('--hires-audio');
 const mixedFormats = process.argv.includes('--mixed-formats');
 const coverflow = process.argv.includes('--coverflow');
+const classic = process.argv.includes('--classic');
 const mix = process.argv.includes('--mix');
 const trackCountArg = process.argv.find(arg => arg.startsWith('--track-count='));
 const resolutionArg = process.argv.find(arg => arg.startsWith('--resolution='));
@@ -55,7 +56,7 @@ const settings = {
   inactiveColor: '#888888',
   artistItalic: true,
   useJewelCase: true,
-  artworkTheme: coverflow ? 'coverflow' : 'jewel',
+  artworkTheme: coverflow ? 'coverflow' : classic ? 'plain' : 'jewel',
   exportQuality: 'medium',
   audioCodec: useAac ? 'aac' : 'alac',
   introDuration: 0,

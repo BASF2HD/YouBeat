@@ -21,8 +21,8 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 - **YouTube Metadata Exporters**:
   - Automatically exports a `Description.txt` containing cumulative timings (`00:00 Track 1 - Singer`, `04:32 Track 2 - Singer`).
   - Automatically exports the first slide layout as a high-quality `Thumbnail.jpg`.
+  - Videos are saved locally for manual upload to YouTube Studio.
 - **Local Metadata Edit Overrides**: Enables editing detected titles, years, track numbers, and singers in the UI, saving edits securely inside a local AppData `metadata_cache.json` rather than editing the user's source media.
-- **YouTube connection**: Connect your channel, browse uploaded videos and playlists, and upload rendered MP4s from the app. Upload titles and descriptions are editable, and render-generated chapter timestamps are prefilled.
 
 ---
 
@@ -68,15 +68,6 @@ Install Node.js with npm. FFmpeg does not need a separate installation.
 2. Run `npm start`.
 
 The first start installs dependencies, including the FFmpeg binary for that computer's operating system and CPU, then builds and opens the app. On an existing checkout, run `git pull` followed by `npm start`. The project keeps dependency versions in `package-lock.json`; the FFmpeg executable is downloaded during installation because each operating system and CPU needs its own binary. An installed desktop package already contains FFmpeg and does not require Node.js.
-
-### Connect YouTube
-
-1. The app developer must register AlbumForge once in [Google Cloud Console](https://console.cloud.google.com/) and enable **YouTube Data API v3**. This does not require a separate Cloud project on every computer or for every YouTube user. Configure the OAuth consent screen for the account that will authorize the app.
-2. Create an OAuth client of type **Desktop app**. This client ID identifies AlbumForge to Google; it is not your email or password. Copy the ID (ending in `.apps.googleusercontent.com`) into the **One-time app connection setup** section of AlbumForge's **YouTube** tab.
-3. Optionally enter your Google email to preselect an account, then click **Continue with Google**. Enter your password only on Google's browser page and approve access there. AlbumForge stores the refresh token encrypted in this computer's OS-protected app data; it is never committed to Git. Each computer needs to be connected once.
-4. Choose a rendered MP4 from the YouTube tab or click **Upload** beside a completed queue item. Review title, chapters/description, and visibility before upload.
-
-Google requires a registered OAuth app and browser-based consent for desktop YouTube API access. Encrypting an email/password inside AlbumForge cannot replace that registration. A Desktop app client ID is a public identifier that can be reused on your computers, while each computer's refresh token remains encrypted locally. Do not bundle a personal YouTube password or refresh token in a shared Git repository. Projects that have not completed Google's YouTube API audit may have uploads restricted to Private, even if another visibility is requested. Check the uploaded video's visibility in YouTube Studio.
 
 ---
 
