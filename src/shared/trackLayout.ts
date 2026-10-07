@@ -25,7 +25,8 @@ export function getTrackLayout(trackCount: number, activeTrackIndex: number, res
   // Reserve enough space for three-digit track numbers as well as the icon.
   const markerWidth = playSize + markerGap + numberSize * 1.8;
   // Each row retains both lines plus only six reference pixels of breathing room.
-  const availableHeight = 900 * scale;
+  // No album-summary header: use the full frame height inside slim safe margins.
+  const availableHeight = (1080 - 24 * 2) * scale;
   const rowHeight = titleSize * 1.15 + artistSize * 1.1 + 6 * scale;
   const capacity = Math.max(1, Math.floor(availableHeight / rowHeight));
   const visibleCount = Math.min(trackCount, capacity);

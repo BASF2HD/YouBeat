@@ -414,6 +414,8 @@ if (verifyTrackAlignment) {
   });
   const errors = result.result.value;
   if (!errors?.length || errors.flat().some(error => error >= 1)) throw new Error(`Preview marker alignment failed: ${JSON.stringify(errors)}`);
+  const header = await send('Runtime.evaluate', { expression: `Boolean(document.querySelector('.preview-album-header'))`, returnByValue: true });
+  if (header.result.value) throw new Error('Classic/CD Jewel preview must not have an album-summary header');
   console.log(`Title-line marker alignment passed for ${errors.length} rows`);
 }
 

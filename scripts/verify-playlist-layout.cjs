@@ -45,7 +45,7 @@ app.whenReady().then(async () => {
           assert.equal(activeLayout.titleSize, layout.titleSize);
           assert.equal(activeLayout.artistSize, layout.artistSize);
         }
-        if (!fonts.trackTitleFontSize && count <= 8) assert.equal(layout.rows, count);
+        if (!fonts.trackTitleFontSize && count <= 12) assert.equal(layout.rows, count);
         const htmlPath = path.join(outputDir, 'frame.html');
         fs.writeFileSync(htmlPath, getSlideHTML(album, active, settings, null,
           pathToFileURL(path.join(__dirname, '../resources/cd-jewel-case-overlay.png')).href));
@@ -56,7 +56,7 @@ app.whenReady().then(async () => {
           const cover = rect('.cover-art-container'), right = rect('.right-panel');
           const rows = [...document.querySelectorAll('.track-item')];
           const list = rect('.tracklist');
-          return { gap: right.left - cover.right, coverRatio: cover.width / cover.height,
+          return { headerAbsent: !document.querySelector('.album-header'), gap: right.left - cover.right, coverRatio: cover.width / cover.height,
             rowHeight: rows[0].getBoundingClientRect().height, count: rows.length,
             titleFont: parseFloat(getComputedStyle(document.querySelector('.track-title')).fontSize),
             artistFont: parseFloat(getComputedStyle(document.querySelector('.track-artist')).fontSize),
@@ -72,6 +72,7 @@ app.whenReady().then(async () => {
             playFirst: document.querySelector('.track-active .track-icon-col').firstElementChild.className === 'track-play-mark' };
         })()`);
         assert.equal(metrics.count, layout.rows);
+        assert.ok(metrics.headerAbsent);
         assert.equal(Number(metrics.activeNumber), count);
         assert.equal(metrics.artistCount, layout.rows);
         assert.ok(Math.abs(metrics.titleFont - layout.titleSize) < .01);

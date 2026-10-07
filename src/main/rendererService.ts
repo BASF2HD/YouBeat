@@ -183,7 +183,7 @@ export function getSlideHTML(
           width: 100%;
           height: 100%;
           display: flex;
-          padding: ${40 * layout.scale}px ${50 * layout.scale}px;
+          padding: ${24 * layout.scale}px ${32 * layout.scale}px;
           gap: ${20 * layout.scale}px;
           align-items: center;
           background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 70%), 
@@ -280,35 +280,9 @@ export function getSlideHTML(
           height: 100%;
           display: flex;
           flex-direction: column;
-          justify-content: flex-start;
+          justify-content: center;
           padding-left: 0;
           min-width: 0;
-        }
-
-        .album-header {
-          margin-bottom: ${12 * layout.scale}px;
-          border-bottom: 2px solid rgba(255,255,255,0.06);
-          padding-bottom: ${12 * layout.scale}px;
-          flex-shrink: 0;
-        }
-
-        .album-name {
-          font-size: ${40 * layout.scale}px;
-          font-weight: 800;
-          letter-spacing: -0.5px;
-          color: #ffffff;
-          line-height: 1.2;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          margin-bottom: ${8 * layout.scale}px;
-          text-shadow: 0 4px 12px rgba(0,0,0,0.5);
-        }
-
-        .album-meta {
-          font-size: ${16 * layout.scale}px;
-          color: rgba(255, 255, 255, 0.45);
-          font-weight: 500;
         }
 
         .tracklist {
@@ -416,15 +390,6 @@ export function getSlideHTML(
           </div>
         </div>
         <div class="right-panel">
-          <div class="album-header">
-            <h1 class="album-name">${escapeHtml(album.albumName)}</h1>
-            <div class="album-meta">
-              <span>${album.year}</span> &bull; 
-              <span>${album.tracksCount} Tracks</span> &bull; 
-              <span>Total Duration: ${formatDuration(album.totalDuration)}</span>
-              ${trackCount > layout.end - layout.start ? ` &bull; <span>Showing ${layout.start + 1}-${layout.end} of ${trackCount}</span>` : ''}
-            </div>
-          </div>
           <div class="tracklist">
             ${trackItemsHTML}
           </div>

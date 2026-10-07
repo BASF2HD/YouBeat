@@ -1701,15 +1701,6 @@ export default function App() {
                             </div>
 
                             <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
-                              <div className="preview-album-header">
-                                <div className="preview-album-name">{selectedAlbum.albumName}</div>
-                                <div className="preview-album-meta">
-                                  {selectedAlbum.year} &bull; {selectedAlbum.tracksCount} Songs &bull; {totalDurationStr(selectedAlbum.totalDuration)}
-                                  {previewTrackLayout && selectedAlbum.tracks.length > previewTrackLayout.end - previewTrackLayout.start &&
-                                    <> &bull; Showing {previewTrackLayout.start + 1}-{previewTrackLayout.end}</>}
-                                </div>
-                              </div>
-
                               <div
                                 className={`preview-tracklist ${previewTrackLayout!.compact ? 'preview-dense' : ''}`}
                                 style={{
