@@ -1720,7 +1720,7 @@ export default function App() {
                                     {coverPath ? <><img className="preview-flow-cover" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /><img className="preview-flow-reflection" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /></> : <div className="preview-flow-fallback">AF</div>}
                                   </div>;
                                 })}
-                                <div className="preview-coverflow-caption"><strong>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small>{selectedAlbum.tracks[previewActiveIndex]?.artist}{selectedAlbum.tracks[previewActiveIndex]?.album ? ` · ${selectedAlbum.tracks[previewActiveIndex].album}` : ''}</small></div>
+                                <div className="preview-coverflow-caption"><strong>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small>{selectedAlbum.tracks[previewActiveIndex]?.album || selectedAlbum.albumName} | {selectedAlbum.tracks[previewActiveIndex]?.year || selectedAlbum.year}</small></div>
                               </div>
                             ) : <>
                             <div className="preview-left">

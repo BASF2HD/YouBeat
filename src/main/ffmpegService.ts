@@ -355,7 +355,7 @@ export async function renderAlbumVideo(
 
   // Build final clean safe video and folder name: "Album Name (Year)"
   const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
-  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ' - Cover Flow Gallery'
+  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ' - Cover Flow Gallery v2'
     : getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case' : '';
   const audioSuffix = settings.audioCodec === 'aac' ? ' - AAC 384' : ' - Lossless';
   const mixSuffix = album.id.startsWith('mix-')

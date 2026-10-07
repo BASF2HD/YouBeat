@@ -120,10 +120,13 @@ export function getSlideHTML(
     const position = offset === 0 ? 'center' : `${offset < 0 ? 'left' : 'right'}-${Math.abs(offset)}`;
     return `<div class="coverflow-item coverflow-${position}"><img class="coverflow-cover" src="${source}" /><img class="coverflow-reflection" src="${source}" /></div>`;
   }).join('');
+  const activeFlowTrack = album.tracks[activeTrackIndex];
+  const flowAlbumName = activeFlowTrack?.album || album.albumName;
+  const flowYear = activeFlowTrack?.year || album.year;
   const coverflowHTML = `
     <div class="coverflow-stage">
       ${coverflowCards}
-      <div class="coverflow-caption"><strong>${escapeHtml(album.tracks[activeTrackIndex]?.title || album.albumName)}</strong><small>${escapeHtml(album.tracks[activeTrackIndex]?.artist || '')}${album.tracks[activeTrackIndex]?.album ? ` · ${escapeHtml(album.tracks[activeTrackIndex].album!)}` : ''}</small></div>
+      <div class="coverflow-caption"><strong>${escapeHtml(activeFlowTrack?.title || album.albumName)}</strong><small>${escapeHtml(flowAlbumName)} | ${escapeHtml(flowYear)}</small></div>
     </div>`;
 
   const tracksToRender = album.tracks.slice(layout.start, layout.end);
@@ -244,23 +247,23 @@ export function getSlideHTML(
 
         .container.coverflow-layout { display: block; padding: 0; background: #000; }
         .coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 1200px; overflow: hidden; background: #000; }
-        .coverflow-item { position: absolute; width: min(50vw, 72vh); aspect-ratio: 1; top: 4%; transform-style: preserve-3d; }
+        .coverflow-item { position: absolute; width: min(50vw, 72vh); aspect-ratio: 1; bottom: 24%; transform-style: preserve-3d; }
         .coverflow-cover, .coverflow-reflection { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
         .coverflow-cover { border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 30px rgba(0,0,0,.8); }
         .coverflow-reflection { position: absolute; left: 0; top: 100%; transform: scaleY(-1); transform-origin: center; opacity: .32; -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
         .coverflow-center { left: 50%; z-index: 7; transform: translateX(-50%); }
-        .coverflow-left-1, .coverflow-right-1 { z-index: 6; top: 15%; width: min(33vw, 47vh); }
-        .coverflow-left-2, .coverflow-right-2 { z-index: 5; top: 18%; width: min(30vw, 43vh); }
-        .coverflow-left-3, .coverflow-right-3 { z-index: 4; top: 21%; width: min(27vw, 39vh); }
+        .coverflow-left-1, .coverflow-right-1 { z-index: 6; bottom: 27.5%; width: min(40vw, 60vh); }
+        .coverflow-left-2, .coverflow-right-2 { z-index: 5; bottom: 26%; width: min(38vw, 57vh); }
+        .coverflow-left-3, .coverflow-right-3 { z-index: 4; bottom: 25%; width: min(36vw, 54vh); }
         .coverflow-left-1 { left: 25%; transform: translateX(-50%) rotateY(50deg); }
         .coverflow-right-1 { left: 75%; transform: translateX(-50%) rotateY(-50deg); }
         .coverflow-left-2 { left: 12%; transform: translateX(-50%) rotateY(50deg); }
         .coverflow-right-2 { left: 88%; transform: translateX(-50%) rotateY(-50deg); }
         .coverflow-left-3 { left: 0%; transform: translateX(-50%) rotateY(50deg); }
         .coverflow-right-3 { left: 100%; transform: translateX(-50%) rotateY(-50deg); }
-        .coverflow-caption { position: absolute; z-index: 10; left: 19%; right: 19%; bottom: 5%; display: flex; flex-direction: column; gap: 5px; align-items: center; text-align: center; overflow: hidden; text-shadow: 0 2px 10px #000; }
+        .coverflow-caption { position: absolute; z-index: 10; left: 19%; right: 19%; top: calc(76% + 8px); display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; overflow: hidden; text-shadow: 0 2px 10px #000; }
         .coverflow-caption strong { font-size: 40px; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .coverflow-caption small { font-size: 21px; color: rgba(255,255,255,.68); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .coverflow-caption small { font-size: 26px; color: rgba(255,255,255,.78); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Right Side: Track List */
         .right-panel {

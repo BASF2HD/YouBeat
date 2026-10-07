@@ -93,6 +93,29 @@ if (openSettings) {
   await new Promise(resolve => setTimeout(resolve, 150));
 }
 
+if (scanLibrary) {
+  await send('Runtime.evaluate', {
+    expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Library'))?.click()`,
+  });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await send('Runtime.evaluate', {
+    expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Scan Library'))?.click()`,
+  });
+  const result = await send('Runtime.evaluate', {
+    expression: `new Promise((resolve, reject) => {
+      let attempts = 0;
+      const timer = setInterval(() => {
+        const rows = document.querySelectorAll('.library-table tbody tr');
+        if (rows.length) { clearInterval(timer); resolve(rows.length); }
+        else if (++attempts >= 100) { clearInterval(timer); reject(new Error('Library scan timed out')); }
+      }, 100);
+    })`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  console.log(`Scanned ${result.result.value} album(s)`);
+}
+
 if (coverflowTheme) {
   await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Settings'))?.click()` });
   await new Promise(resolve => setTimeout(resolve, 100));
@@ -128,25 +151,6 @@ if (verifyFfmpeg) {
     returnByValue: true,
   });
   console.log(result.result.value);
-}
-
-if (scanLibrary) {
-  await send('Runtime.evaluate', {
-    expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Scan Library'))?.click()`,
-  });
-  const result = await send('Runtime.evaluate', {
-    expression: `new Promise((resolve, reject) => {
-      let attempts = 0;
-      const timer = setInterval(() => {
-        const rows = document.querySelectorAll('.library-table tbody tr');
-        if (rows.length) { clearInterval(timer); resolve(rows.length); }
-        else if (++attempts >= 100) { clearInterval(timer); reject(new Error('Library scan timed out')); }
-      }, 100);
-    })`,
-    awaitPromise: true,
-    returnByValue: true,
-  });
-  console.log(`Scanned ${result.result.value} album(s)`);
 }
 
 if (selectFirst) {
