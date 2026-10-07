@@ -145,7 +145,7 @@ export function getSlideHTML(
       <div class="track-item ${activeClass}" style="color: ${color};">
         <div class="track-icon-col">
           <span class="track-play-mark" aria-hidden="true" style="visibility: ${isActive ? 'visible' : 'hidden'};">▶</span>
-          <span class="track-num" style="font-size: ${layout.metaSize}px; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
+          <span class="track-num" style="font-size: ${layout.numberSize}px; ${isActive ? `color: ${settings.activeColor}; font-weight: 700;` : ''}">${trackNumDisplay}</span>
         </div>
         <div class="track-info-col">
           <div class="track-title" style="font-size: ${layout.titleSize}px;">${escapeHtml(track.title)}</div>
@@ -337,15 +337,15 @@ export function getSlideHTML(
         }
 
         .track-icon-col {
-          width: ${64 * layout.scale}px;
+          width: ${layout.markerWidth}px;
           display: grid;
-          grid-template-columns: ${22 * layout.scale}px 1fr;
+          grid-template-columns: ${layout.playSize}px minmax(0, 1fr);
           align-items: center;
-          gap: ${8 * layout.scale}px;
+          gap: ${layout.markerGap}px;
           flex-shrink: 0;
         }
 
-        .track-play-mark { color: ${settings.activeColor}; font-size: ${22 * layout.scale}px; line-height: 1; }
+        .track-play-mark { color: ${settings.activeColor}; font-size: ${layout.playSize}px; line-height: 1; }
 
         .track-num {
           font-weight: 600;

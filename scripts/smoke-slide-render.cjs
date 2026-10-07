@@ -142,6 +142,7 @@ app.whenReady().then(async () => {
     if (inspect.status !== 0 || !inspect.stderr.includes('h264') || !inspect.stderr.includes(useAac ? 'aac' : 'alac')) {
       throw new Error(`The rendered MP4 did not decode correctly: ${inspect.stderr}`);
     }
+    if (useAac && !inspect.stderr.includes('48000 Hz')) throw new Error(`YouTube audio profile did not render at 48 kHz: ${inspect.stderr}`);
     const durationMatch = inspect.stderr.match(/Duration: (\d+):(\d+):([\d.]+)/);
     const actualDuration = durationMatch
       ? Number(durationMatch[1]) * 3600 + Number(durationMatch[2]) * 60 + Number(durationMatch[3])

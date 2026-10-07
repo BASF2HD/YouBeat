@@ -360,8 +360,8 @@ export async function renderAlbumVideo(
   const coverflowSizes = getCoverflowFontSizes(settings);
   const trackSizes = getTrackFontSizes(settings);
   const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v6 T${coverflowSizes.song} A${coverflowSizes.album}`
-    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v5' : ' - Classic Cover v5'} T${trackSizes.title} A${trackSizes.artist}`;
-  const audioSuffix = settings.audioCodec === 'aac' ? ' - AAC 384' : ' - Lossless';
+    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v6' : ' - Classic Cover v6'} T${trackSizes.title} A${trackSizes.artist}`;
+  const audioSuffix = settings.audioCodec === 'alac' ? ' - Lossless' : ' - YouTube AAC 48k';
   const mixSuffix = album.id.startsWith('mix-')
     ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`
     : '';
@@ -415,18 +415,18 @@ export async function renderAlbumVideo(
     audioSources.push({ sampleRate, channels, bitsPerSample: metadata.format.bitsPerSample || 16 });
   }
 
-  const audioCodec = settings.audioCodec || 'alac';
-  const audioSampleRate = Math.max(...audioSources.map(source => source.sampleRate));
+  const audioCodec = settings.audioCodec || 'aac';
+  const audioSampleRate = audioCodec === 'aac' ? 48000 : Math.max(...audioSources.map(source => source.sampleRate));
   const audioChannels = Math.max(...audioSources.map(source => source.channels));
   const needsAudioNormalization = audioSources.some(source =>
     source.sampleRate !== audioSampleRate || source.channels !== audioChannels
   );
   const audioArgs = audioCodec === 'alac'
     ? ['-c:a', 'alac', '-sample_fmt', audioSources.some(source => source.bitsPerSample > 16) ? 's32p' : 's16p', '-ar', String(audioSampleRate), '-ac', String(audioChannels)]
-    : ['-c:a', 'aac', '-profile:a', 'aac_low', '-ar', String(audioSampleRate), '-ac', String(audioChannels), '-b:a', audioChannels === 1 ? '192k' : audioChannels <= 2 ? '384k' : '512k'];
+    : ['-c:a', 'aac', '-profile:a', 'aac_low', '-ar', String(audioSampleRate), '-ac', String(audioChannels), '-b:a', audioChannels === 1 ? '128k' : audioChannels <= 2 ? '384k' : '512k'];
   log(audioCodec === 'alac'
     ? `Audio Encoding: ALAC, ${audioSampleRate} Hz, ${audioChannels} channel(s); ${needsAudioNormalization ? 'mixed source formats are resampled/upmixed to a common format before lossless encoding' : 'source PCM is not downsampled'}.`
-    : `Audio Encoding: AAC-LC ${audioArgs[audioArgs.length - 1]}, ${audioSampleRate} Hz, ${audioChannels} channel(s); this mode is lossy.`, 'info');
+    : `Audio Encoding: YouTube upload profile, AAC-LC ${audioArgs[audioArgs.length - 1]}, ${audioSampleRate} Hz, ${audioChannels} channel(s); local lossy encoding, not YouTube's server encoder.`, 'info');
 
   // A slide does not change during a track. Encode it at about one frame per second
   // for the track's full duration so inter-frame compression can work across

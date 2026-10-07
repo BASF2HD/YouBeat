@@ -113,14 +113,16 @@ export default function App() {
     coverflowAlbumFontSize: 38,
     coverflowDefaultsVersion: 1,
     trackTitleFontSize: 40,
-    trackArtistFontSize: 20,
+    trackArtistFontSize: 30,
+    trackDefaultsVersion: 1,
+    audioDefaultsVersion: 1,
     activeColor: '#ffffff',
     inactiveColor: '#888888',
     artistItalic: true,
     useJewelCase: false,
     artworkTheme: 'plain',
     exportQuality: 'medium',
-    audioCodec: 'alac',
+    audioCodec: 'aac',
     introDuration: 0,
     fadeDuration: 0,
     scanRecursive: false,
@@ -293,6 +295,17 @@ export default function App() {
           if (parsed.coverflowSongFontSize == null || parsed.coverflowSongFontSize === 40) parsed.coverflowSongFontSize = 52;
           if (parsed.coverflowAlbumFontSize == null || parsed.coverflowAlbumFontSize === 34) parsed.coverflowAlbumFontSize = 38;
           parsed.coverflowDefaultsVersion = 1;
+        }
+        if (!parsed.trackDefaultsVersion) {
+          // The requested larger artist default also replaces the previous
+          // installation's size once; future slider choices stay untouched.
+          parsed.trackTitleFontSize = 40;
+          parsed.trackArtistFontSize = 30;
+          parsed.trackDefaultsVersion = 1;
+        }
+        if (!parsed.audioDefaultsVersion) {
+          parsed.audioCodec = 'aac';
+          parsed.audioDefaultsVersion = 1;
         }
         setSettings(prev => {
           const next = { ...prev, ...parsed, artworkTheme: parsed.artworkTheme || (parsed.useJewelCase ? 'jewel' : 'plain') };
@@ -1376,14 +1389,14 @@ export default function App() {
                     <span className="input-label">Audio encoding</span>
                     <select
                       className="select-input"
-                      value={settings.audioCodec || 'alac'}
+                      value={settings.audioCodec || 'aac'}
                       aria-label="Audio encoding"
                       onChange={(e) => updateSettings({ audioCodec: e.target.value as RenderSettings['audioCodec'] })}
                     >
                       <option value="alac">Lossless ALAC — preserve source audio (larger MP4)</option>
-                      <option value="aac">AAC-LC 384 kb/s — YouTube-friendly (lossy)</option>
+                      <option value="aac">YouTube upload — AAC-LC 384 kb/s stereo, 48 kHz</option>
                     </select>
-                    <span className="input-hint">{settings.audioCodec === 'aac' ? 'AAC is lossy. Choose Lossless ALAC for the best source-preserving local export. ' : 'Lossless ALAC avoids an additional lossy audio codec. '}Audio quality is independent of video quality. Mixed-format songs are resampled/upmixed to the highest source sample rate and channel count. YouTube processes uploads separately; lossless streaming cannot be guaranteed.</span>
+                    <span className="input-hint">{settings.audioCodec === 'alac' ? 'Lossless ALAC avoids an additional lossy audio codec; mixed formats use the highest source sample rate and channel count. ' : 'YouTube-recommended upload profile: AAC-LC, 48 kHz; 384 kb/s stereo (128 kb/s mono, 512 kb/s surround). This profile is lossy. '}The app encodes the local file, not YouTube’s server encoder. YouTube processes every upload separately. Audio settings are independent of video quality.</span>
                   </div>
                 </div>
 
@@ -1714,8 +1727,8 @@ export default function App() {
                                     onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); selectPreviewTrack(i + previewTrackLayout!.start); } }}
                                     aria-label={`Preview ${track.title}`}
                                   >
-                                    <div className="preview-track-num-col">
-                                      <span className="preview-track-play-mark" aria-hidden="true" style={{ visibility: i + previewTrackLayout!.start === previewActiveIndex ? 'visible' : 'hidden' }}>▶</span>
+                                    <div className="preview-track-num-col" style={{ width: `${previewTrackLayout!.markerWidth / previewTrackLayout!.frameWidth * 100}cqw`, gridTemplateColumns: `${previewTrackLayout!.playSize / previewTrackLayout!.frameWidth * 100}cqw minmax(0, 1fr)`, gap: `${previewTrackLayout!.markerGap / previewTrackLayout!.frameWidth * 100}cqw`, fontSize: `${previewTrackLayout!.numberSize / previewTrackLayout!.frameWidth * 100}cqw` }}>
+                                      <span className="preview-track-play-mark" aria-hidden="true" style={{ fontSize: `${previewTrackLayout!.playSize / previewTrackLayout!.frameWidth * 100}cqw`, visibility: i + previewTrackLayout!.start === previewActiveIndex ? 'visible' : 'hidden' }}>▶</span>
                                       <span>{String(track.trackNumber || i + previewTrackLayout!.start + 1).padStart(2, '0')}</span>
                                     </div>
                                     <div className="preview-track-info-col">

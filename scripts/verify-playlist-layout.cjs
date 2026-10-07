@@ -45,7 +45,7 @@ app.whenReady().then(async () => {
           assert.equal(activeLayout.titleSize, layout.titleSize);
           assert.equal(activeLayout.artistSize, layout.artistSize);
         }
-        if (!fonts.trackTitleFontSize && count <= 12) assert.equal(layout.rows, count);
+        if (!fonts.trackTitleFontSize && count <= 8) assert.equal(layout.rows, count);
         const htmlPath = path.join(outputDir, 'frame.html');
         fs.writeFileSync(htmlPath, getSlideHTML(album, active, settings, null,
           pathToFileURL(path.join(__dirname, '../resources/cd-jewel-case-overlay.png')).href));
@@ -61,6 +61,8 @@ app.whenReady().then(async () => {
             titleFont: parseFloat(getComputedStyle(document.querySelector('.track-title')).fontSize),
             artistFont: parseFloat(getComputedStyle(document.querySelector('.track-artist')).fontSize),
             artistCount: document.querySelectorAll('.track-artist').length,
+            numberFont: parseFloat(getComputedStyle(document.querySelector('.track-num')).fontSize),
+            playFont: parseFloat(getComputedStyle(document.querySelector('.track-play-mark')).fontSize),
             activeNumber: document.querySelector('.track-active .track-num').textContent,
             fits: rows.every(row => { const box = row.getBoundingClientRect(); return box.bottom <= list.bottom + 1 && box.bottom <= innerHeight; }),
             textFits: rows.every(row => [...row.querySelectorAll('.track-title, .track-artist')].every(text => {
@@ -74,6 +76,8 @@ app.whenReady().then(async () => {
         assert.equal(metrics.artistCount, layout.rows);
         assert.ok(Math.abs(metrics.titleFont - layout.titleSize) < .01);
         assert.ok(Math.abs(metrics.artistFont - layout.artistSize) < .01);
+        assert.ok(Math.abs(metrics.numberFont - layout.titleSize * .75) < .01);
+        assert.ok(Math.abs(metrics.playFont - layout.titleSize * .8) < .01);
         assert.ok(metrics.fits && metrics.textFits && metrics.playFirst, JSON.stringify({ resolution, theme, count, metrics }));
         assert.ok(Math.abs(metrics.rowHeight - layout.rowHeight) < 1);
         assert.ok(Math.abs(metrics.gap - 20 * layout.scale) < 1);

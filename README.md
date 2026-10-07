@@ -12,12 +12,12 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 - **Mix Builder**: Select and reorder songs across scanned albums. Their individual album covers appear in the Cover Flow video and live preview.
 - **Smart Adaptive Tracklist Viewport**: 
   - Generates a highlighted vertical listing of song names and singers (in italic) on the right side.
-  - Classic/CD Jewel offer independent song-title and artist font controls (40/20 px defaults at 1080p). Rows grow with the chosen sizes; longer lists follow the current song instead of shrinking text or hiding artists.
+  - Classic/CD Jewel offer independent song-title and artist font controls (40/30 px defaults at 1080p). Song numbers and play markers scale with the title size. Rows grow with the chosen sizes; longer lists follow the current song instead of shrinking text or hiding artists.
   - Cover Flow defaults to 52 px song titles and 38 px album/year captions. Captions stay inside the centre cover width, with ellipsis for long names. All typography scales consistently for 720p and the preview.
-  - If an album contains more than 12 tracks, the layout automatically shifts to a moving viewport that scrolls to center around the active playing track.
+  - When a list exceeds the space available at the selected sizes, its visible window follows the active track (10 rows at the default 40/30 px settings).
 - **Efficient FFmpeg Assembly**:
   1. Encodes each track's still slide at about one frame per second to H.264, using Apple VideoToolbox on macOS when available. Inter-frame compression keeps long album files compact.
-  2. Encodes the matching audio to ALAC by default, or AAC when selected, without duplicating 30 identical video frames each second. Mixed source formats use a common sample rate and channel layout before encoding.
+  2. Defaults to YouTube's recommended upload profile: AAC-LC at 48 kHz and 384 kb/s stereo (128 kb/s mono / 512 kb/s surround). This is a local lossy encode, not YouTube's server encoder. Lossless ALAC remains available for archival exports. YouTube re-encodes uploads regardless of the local profile.
   3. Joins the finished track segments without another video encode.
 - **YouTube Metadata Exporters**:
   - Automatically exports a `Description.txt` containing cumulative timings (`00:00 Track 1 - Singer`, `04:32 Track 2 - Singer`).
@@ -33,6 +33,7 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 AlbumForge Studio/
 ├── package.json
 ├── vite.config.ts
+├── vite.main.config.ts           # Bundles desktop runtime dependencies
 ├── tsconfig.json
 ├── index.html
 ├── src/
@@ -78,23 +79,35 @@ Run `npm start` to install missing dependencies, build the code, and launch the 
 
 ---
 
-## Building & Packaging (Windows 10/11)
+## Standalone Windows and Mac applications
 
-To compile the application into a standalone `.exe` installable package:
-```powershell
-# Standard package compilation (creates dist-package/ installer)
-npm run dist
+The installed app includes Electron and FFmpeg: users do not need Node.js, npm or a separate FFmpeg installation. Outputs are saved in `dist-package/`.
+
+On a Windows x64 computer, install dependencies and build an installer **and** a portable executable:
+```sh
+npm install
+npm run dist:win
 ```
-Or compile a fast, unpacked local folder to test compilation outputs:
-```powershell
-# Fast unpacked build check
+
+On macOS (Apple Silicon or Intel), build a `.dmg` installer and `.zip` containing the `.app`:
+```sh
+npm install
+npm run dist:mac
+```
+
+For an unpacked `.app` / application directory on the current computer:
+```sh
 npm run pack
 ```
+
+Build on the same OS and CPU architecture as the intended package, using a fresh dependency installation. FFmpeg is a platform-specific executable; the build hook rejects mismatched cross-platform/architecture packages rather than shipping an unusable binary. Apple Silicon and Intel Mac builds are separate. Signing/notarization for public distribution requires the corresponding developer certificates; local builds can be unsigned.
+
+This repository is a desktop application, not a browser-only web application. Its UI uses web technologies, but scanning local folders, launching FFmpeg and capturing export frames depend on Electron/Node. A web version would need a server rendering backend or a separate browser-compatible media pipeline.
 
 ---
 
 ## Technical Performance Optimization Notes
 
 - **Offscreen Capture Repaint Timing**: The slide generator waits for images to load before capturing the hidden BrowserWindow, then allows a short paint delay.
-- **FFmpeg Concat Stream Alignment**: The intermediate segments share a sample rate and channel layout, chosen from the highest-rate source in the selection. This lets the final MP4 concatenate without re-encoding its finished streams. When sources differ, the lower-rate/channel audio is converted to that common format; ALAC remains lossless after this conversion, but cannot restore information absent from the originals.
+- **FFmpeg Concat Stream Alignment**: The intermediate segments share a sample rate and channel layout. AAC uploads use 48 kHz; ALAC uses the highest source sample rate. This lets the final MP4 concatenate without re-encoding its finished streams. When sources differ, audio is converted to that common format; ALAC remains lossless after conversion, but cannot restore information absent from the originals.
 - **Garbage Cleanup**: All intermediate PNG slides and segment `.mp4` chunks generated during render processes are completely deleted upon compile completion or cancellation, keeping disk footprint clean.

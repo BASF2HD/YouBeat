@@ -7,7 +7,7 @@ export function getTrackFontSizes(settings: TrackTypography = {}) {
     typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max ? Math.round(value) : fallback;
   return {
     title: validSize(settings.trackTitleFontSize, 40, 24, 64),
-    artist: validSize(settings.trackArtistFontSize, 20, 12, 36),
+    artist: validSize(settings.trackArtistFontSize, 30, 12, 36),
   };
 }
 
@@ -19,6 +19,11 @@ export function getTrackLayout(trackCount: number, activeTrackIndex: number, res
   const fonts = getTrackFontSizes(settings);
   const titleSize = fonts.title * scale;
   const artistSize = fonts.artist * scale;
+  const numberSize = titleSize * .75;
+  const playSize = titleSize * .8;
+  const markerGap = titleSize * .15;
+  // Reserve enough space for three-digit track numbers as well as the icon.
+  const markerWidth = playSize + markerGap + numberSize * 1.8;
   // Each row retains both lines plus only six reference pixels of breathing room.
   const availableHeight = 900 * scale;
   const rowHeight = titleSize * 1.15 + artistSize * 1.1 + 6 * scale;
@@ -41,5 +46,9 @@ export function getTrackLayout(trackCount: number, activeTrackIndex: number, res
     titleSize,
     artistSize,
     metaSize: 20 * scale,
+    numberSize,
+    playSize,
+    markerGap,
+    markerWidth,
   };
 }

@@ -8,12 +8,14 @@
   "scripts": {
     "dev": "vite",
     "build:renderer": "tsc -p tsconfig.renderer.json && vite build",
-    "build:main": "tsc -p tsconfig.main.json",
+    "build:main": "tsc -p tsconfig.main.json && vite build --config vite.main.config.ts",
     "build": "npm run build:renderer && npm run build:main",
     "electron:dev": "electron .",
     "start": "node scripts/start.cjs",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never"
   },
   "dependencies": {
     "ffmpeg-static": "5.3.0",
@@ -35,6 +37,8 @@
     "appId": "com.albumforge.studio",
     "productName": "AlbumForge Studio",
     "icon": "resources/albumforge-icon.png",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "beforePack": "./scripts/validate-package.cjs",
     "directories": {
       "output": "dist-package"
     },
@@ -47,8 +51,20 @@
       "node_modules/ffmpeg-static/ffmpeg*"
     ],
     "win": {
-      "target": "nsis",
+      "target": ["nsis", "portable"],
       "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "artifactName": "${productName}-${version}-win-${arch}-Setup.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-win-${arch}-Portable.${ext}"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.music"
     }
   }
 }
