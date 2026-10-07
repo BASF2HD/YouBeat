@@ -12,6 +12,7 @@ const verifySelectionCards = process.argv.includes('--verify-selection-cards');
 const verifyCoverflowMotion = process.argv.includes('--verify-coverflow-motion');
 const verifyCoverflowSettings = process.argv.includes('--verify-coverflow-settings');
 const verifyTrackSettings = process.argv.includes('--verify-track-settings');
+const verifyTrackAlignment = process.argv.includes('--verify-track-alignment');
 const losslessAudio = process.argv.includes('--lossless-audio');
 const verifyCoverflowCaption = process.argv.includes('--verify-coverflow-caption');
 const scrollFontSettings = process.argv.includes('--scroll-font-settings');
@@ -166,7 +167,7 @@ if (verifyCoverflowSettings) {
     returnByValue: true,
   });
   const coverflowSettings = result.result.value;
-  if (coverflowSettings.values?.[0] !== '52' || coverflowSettings.values?.[1] !== '38') throw new Error(`Cover Flow settings check failed: ${JSON.stringify(coverflowSettings)}`);
+  if (coverflowSettings.values?.[0] !== '72' || coverflowSettings.values?.[1] !== '48') throw new Error(`Cover Flow settings check failed: ${JSON.stringify(coverflowSettings)}`);
   console.log(`Cover Flow settings check passed: ${JSON.stringify(coverflowSettings)}`);
 }
 
@@ -399,6 +400,21 @@ if (domOnly) {
   console.log(result.result.value);
   socket.close();
   process.exit(0);
+}
+
+if (verifyTrackAlignment) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(() => {
+      const centre = element => { const rect = element.getBoundingClientRect(); return rect.top + rect.height / 2; };
+      return [...document.querySelectorAll('.preview-track-item')].map(row => {
+        const title = centre(row.querySelector('.preview-track-title'));
+        return [...row.querySelectorAll('.preview-track-num-col span')].map(marker => Math.abs(centre(marker) - title));
+      });
+    })()`, returnByValue: true,
+  });
+  const errors = result.result.value;
+  if (!errors?.length || errors.flat().some(error => error >= 1)) throw new Error(`Preview marker alignment failed: ${JSON.stringify(errors)}`);
+  console.log(`Title-line marker alignment passed for ${errors.length} rows`);
 }
 
 const screenshot = await send('Page.captureScreenshot', {

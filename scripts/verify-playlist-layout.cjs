@@ -79,6 +79,14 @@ app.whenReady().then(async () => {
         assert.ok(Math.abs(metrics.numberFont - layout.titleSize * .75) < .01);
         assert.ok(Math.abs(metrics.playFont - layout.titleSize * .8) < .01);
         assert.ok(metrics.fits && metrics.textFits && metrics.playFirst, JSON.stringify({ resolution, theme, count, metrics }));
+        const markerAlignment = await window.webContents.executeJavaScript(`(() => {
+          const centre = element => { const rect = element.getBoundingClientRect(); return rect.top + rect.height / 2; };
+          return [...document.querySelectorAll('.track-item')].every(row => {
+            const title = centre(row.querySelector('.track-title'));
+            return [...row.querySelectorAll('.track-icon-col span')].every(marker => Math.abs(centre(marker) - title) < 1);
+          });
+        })()`);
+        assert.ok(markerAlignment, `Markers must align with the title line: ${resolution} ${theme} ${count}`);
         assert.ok(Math.abs(metrics.rowHeight - layout.rowHeight) < 1);
         assert.ok(Math.abs(metrics.gap - 20 * layout.scale) < 1);
         assert.ok(Math.abs(metrics.coverRatio - (theme === 'plain' ? 1 : 3295 / 3008)) < .01);
@@ -91,7 +99,7 @@ app.whenReady().then(async () => {
       }
       }
     }
-    for (const fonts of [{}, { coverflowSongFontSize: 72, coverflowAlbumFontSize: 48 }]) {
+    for (const fonts of [{}, { coverflowSongFontSize: 24, coverflowAlbumFontSize: 18 }]) {
       const settings = { resolution, artworkTheme: 'coverflow', fontFamily: 'Arial', backgroundColor: '#000', activeColor: '#fff', inactiveColor: '#888', ...fonts };
       const album = { albumName: 'An extremely long album name '.repeat(10), year: '2026', tracksCount: 9,
         tracks: Array.from({ length: 9 }, (_, index) => ({ title: 'A very long song title '.repeat(10), trackNumber: index + 1, duration: 180 })), totalDuration: 1620 };
@@ -113,7 +121,7 @@ app.whenReady().then(async () => {
       assert.ok(Math.abs(metrics.lines[0].font - sizes.song * scale) < .01);
       assert.ok(Math.abs(metrics.lines[1].font - sizes.album * scale) < .01);
       if (!fonts.coverflowSongFontSize) {
-        assert.deepEqual(sizes, { song: 52, album: 38 });
+        assert.deepEqual(sizes, { song: 72, album: 48 });
         fs.writeFileSync(path.join(outputDir, `caption-${resolution}.png`), (await window.webContents.capturePage()).toPNG());
       }
       cases++;

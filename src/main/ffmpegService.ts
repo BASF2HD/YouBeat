@@ -360,7 +360,7 @@ export async function renderAlbumVideo(
   const coverflowSizes = getCoverflowFontSizes(settings);
   const trackSizes = getTrackFontSizes(settings);
   const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v6 T${coverflowSizes.song} A${coverflowSizes.album}`
-    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v6' : ' - Classic Cover v6'} T${trackSizes.title} A${trackSizes.artist}`;
+    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v7' : ' - Classic Cover v7'} T${trackSizes.title} A${trackSizes.artist}`;
   const audioSuffix = settings.audioCodec === 'alac' ? ' - Lossless' : ' - YouTube AAC 48k';
   const mixSuffix = album.id.startsWith('mix-')
     ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`

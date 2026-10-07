@@ -1046,12 +1046,15 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-track-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-rows: auto auto;
+  align-content: center;
   align-items: center;
   border-radius: 4px;
   min-height: 0;
   padding: 0 0.4167cqw;
-  gap: 0.4167cqw;
+  column-gap: 0.4167cqw;
   cursor: pointer;
 }
 
@@ -1060,6 +1063,8 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-track-num-col {
+  grid-column: 1;
+  grid-row: 1;
   width: 3.3333cqw;
   display: grid;
   grid-template-columns: 1.1458cqw 1fr;
@@ -1067,19 +1072,18 @@ body.preview-resizing .workspace-content {
   gap: 0.4167cqw;
   font-size: inherit;
   font-weight: 600;
+  line-height: 1;
   flex-shrink: 0;
 }
 .preview-track-play-mark { color: currentColor; font-size: 1.1458cqw; line-height: 1; }
 
 .preview-track-info-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
+  display: contents;
 }
 
 .preview-track-title {
+  grid-column: 2;
+  grid-row: 1;
   font-size: clamp(6px, 1.5cqw, 11px);
   font-weight: 700;
   line-height: 1.15;
@@ -1093,6 +1097,8 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-track-artist {
+  grid-column: 2;
+  grid-row: 2;
   font-size: inherit;
   opacity: 0.8;
   line-height: 1.1;
@@ -1102,6 +1108,8 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-track-duration {
+  grid-column: 3;
+  grid-row: 1 / span 2;
   font-size: inherit;
   font-weight: 600;
   opacity: 0.6;

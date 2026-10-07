@@ -322,12 +322,15 @@ export function getSlideHTML(
         }
 
         .track-item {
-          display: flex;
+          display: grid;
+          grid-template-columns: max-content minmax(0, 1fr) max-content;
+          grid-template-rows: auto auto;
+          align-content: center;
           align-items: center;
           border-radius: 4px;
           padding-left: ${8 * layout.scale}px;
           padding-right: ${8 * layout.scale}px;
-          gap: ${8 * layout.scale}px;
+          column-gap: ${8 * layout.scale}px;
           min-height: 0;
           background: transparent;
         }
@@ -337,6 +340,8 @@ export function getSlideHTML(
         }
 
         .track-icon-col {
+          grid-column: 1;
+          grid-row: 1;
           width: ${layout.markerWidth}px;
           display: grid;
           grid-template-columns: ${layout.playSize}px minmax(0, 1fr);
@@ -348,6 +353,7 @@ export function getSlideHTML(
         .track-play-mark { color: ${settings.activeColor}; font-size: ${layout.playSize}px; line-height: 1; }
 
         .track-num {
+          line-height: 1;
           font-weight: 600;
           color: rgba(255,255,255,0.25);
           font-size: 14px;
@@ -359,15 +365,12 @@ export function getSlideHTML(
         }
 
         .track-info-col {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          padding-right: 0;
-          min-width: 0;
+          display: contents;
         }
 
         .track-title {
+          grid-column: 2;
+          grid-row: 1;
           font-weight: 700;
           line-height: 1.15;
           white-space: nowrap;
@@ -376,6 +379,8 @@ export function getSlideHTML(
         }
 
         .track-artist {
+          grid-column: 2;
+          grid-row: 2;
           font-weight: 400;
           opacity: 0.8;
           line-height: 1.1;
@@ -385,6 +390,8 @@ export function getSlideHTML(
         }
 
         .track-duration {
+          grid-column: 3;
+          grid-row: 1 / span 2;
           font-weight: 600;
           text-align: right;
           white-space: nowrap;

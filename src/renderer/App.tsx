@@ -109,9 +109,9 @@ export default function App() {
     resolution: '1920x1080',
     backgroundColor: '#000000',
     fontFamily: 'Outfit',
-    coverflowSongFontSize: 52,
-    coverflowAlbumFontSize: 38,
-    coverflowDefaultsVersion: 1,
+    coverflowSongFontSize: 72,
+    coverflowAlbumFontSize: 48,
+    coverflowDefaultsVersion: 2,
     trackTitleFontSize: 40,
     trackArtistFontSize: 30,
     trackDefaultsVersion: 1,
@@ -290,11 +290,13 @@ export default function App() {
     if (savedSettings) {
       try {
         const { fps: _obsoleteFps, ...parsed } = JSON.parse(savedSettings);
-        // Upgrade the old defaults once while retaining custom font sizes.
-        if (!parsed.coverflowDefaultsVersion) {
-          if (parsed.coverflowSongFontSize == null || parsed.coverflowSongFontSize === 40) parsed.coverflowSongFontSize = 52;
-          if (parsed.coverflowAlbumFontSize == null || parsed.coverflowAlbumFontSize === 34) parsed.coverflowAlbumFontSize = 38;
-          parsed.coverflowDefaultsVersion = 1;
+        // Upgrade saved defaults once; future font choices stay saved.
+        if ((parsed.coverflowDefaultsVersion || 0) < 2) {
+          // Apply the requested defaults to existing installations once;
+          // subsequent changes to either slider remain saved.
+          parsed.coverflowSongFontSize = 72;
+          parsed.coverflowAlbumFontSize = 48;
+          parsed.coverflowDefaultsVersion = 2;
         }
         if (!parsed.trackDefaultsVersion) {
           // The requested larger artist default also replaces the previous

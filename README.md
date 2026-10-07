@@ -13,7 +13,7 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 - **Smart Adaptive Tracklist Viewport**: 
   - Generates a highlighted vertical listing of song names and singers (in italic) on the right side.
   - Classic/CD Jewel offer independent song-title and artist font controls (40/30 px defaults at 1080p). Song numbers and play markers scale with the title size. Rows grow with the chosen sizes; longer lists follow the current song instead of shrinking text or hiding artists.
-  - Cover Flow defaults to 52 px song titles and 38 px album/year captions. Captions stay inside the centre cover width, with ellipsis for long names. All typography scales consistently for 720p and the preview.
+  - Cover Flow defaults to its maximum sizes: 72 px song titles and 48 px album/year captions. Captions stay inside the centre cover width, with ellipsis for long names. All typography scales consistently for 720p and the preview.
   - When a list exceeds the space available at the selected sizes, its visible window follows the active track (10 rows at the default 40/30 px settings).
 - **Efficient FFmpeg Assembly**:
   1. Encodes each track's still slide at about one frame per second to H.264, using Apple VideoToolbox on macOS when available. Inter-frame compression keeps long album files compact.
