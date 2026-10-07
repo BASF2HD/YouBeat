@@ -170,12 +170,18 @@ export default function App() {
   const runOutputPreflight = async () => {
     if (!settings.outputFolder) {
       setOutputCheck({ checking: false, ok: false, message: 'No output folder selected yet.' });
-      return false;
+      return { ok: false, message: 'No output folder selected yet.' };
     }
     setOutputCheck({ checking: true, ok: null, message: 'Checking writability…' });
-    const result = await window.api.testOutputWritable(settings.outputFolder);
-    setOutputCheck({ checking: false, ok: result.ok, message: result.message });
-    return result.ok;
+    try {
+      const result = await window.api.testOutputWritable(settings.outputFolder);
+      setOutputCheck({ checking: false, ok: result.ok, message: result.message });
+      return result;
+    } catch (error) {
+      const result = { ok: false, message: `Output check failed: ${error instanceof Error ? error.message : String(error)}` };
+      setOutputCheck({ checking: false, ...result });
+      return result;
+    }
   };
 
   // Inline Metadata Editor Modal State
@@ -553,8 +559,9 @@ export default function App() {
     }
 
     // Fail early: don't even add to queue if the output folder isn't writable
-    if (!await runOutputPreflight()) {
-      alert(`Cannot start render: ${outputCheck.message || 'Output folder is not writable.'}\n\nPlease pick a different output folder (local folders like C:\\Videos work best).`);
+    const preflight = await runOutputPreflight();
+    if (!preflight.ok) {
+      alert(`Cannot start render: ${preflight.message}`);
       setActiveTab('settings');
       return;
     }
@@ -579,8 +586,9 @@ export default function App() {
     }
 
     // Fail early: don't even add to queue if the output folder isn't writable
-    if (!await runOutputPreflight()) {
-      alert(`Cannot start render: ${outputCheck.message || 'Output folder is not writable.'}\n\nPlease pick a different output folder (local folders like C:\\Videos work best).`);
+    const preflight = await runOutputPreflight();
+    if (!preflight.ok) {
+      alert(`Cannot start render: ${preflight.message}`);
       setActiveTab('settings');
       return;
     }
@@ -606,7 +614,8 @@ export default function App() {
   const handleRenderMix = async () => {
     if (!mixPreviewAlbum || !mixTitle.trim()) return;
     if (!settings.outputFolder) { setActiveTab('settings'); alert('Choose an output folder first.'); return; }
-    if (!await runOutputPreflight()) { alert('The output folder is not writable.'); return; }
+    const preflight = await runOutputPreflight();
+    if (!preflight.ok) { alert(`Cannot start render: ${preflight.message}`); return; }
     const mix: Album = {
       ...mixPreviewAlbum,
       id: `mix-${Date.now()}`,

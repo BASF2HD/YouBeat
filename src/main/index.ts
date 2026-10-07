@@ -6,7 +6,7 @@ import { Album, RenderSettings } from '../shared/types';
 import { scanForAlbums, ScanProgress } from './scanner';
 import { parseAlbumFolder } from './metadata';
 import { queueManager } from './queueManager';
-import { testFfmpegPath, getAvailableHwEncoders } from './ffmpegService';
+import { testFfmpegPath, getAvailableHwEncoders, ensureOutputWritable } from './ffmpegService';
 // Suppress benign Electron dev-time security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 app.setName('AlbumForge Studio');
@@ -549,8 +549,6 @@ ipcMain.handle('test-output-writable', async (_event, outDir: string): Promise<{
     if (!outDir) {
       return { ok: false, message: 'No output folder specified.' };
     }
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { ensureOutputWritable } = require('./ffmpegService') as typeof import('./ffmpegService');
     await ensureOutputWritable(outDir);
     return { ok: true, message: `Output folder "${outDir}" is writable.` };
   } catch (err: any) {

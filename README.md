@@ -104,6 +104,10 @@ Build on the same OS and CPU architecture as the intended package, using a fresh
 
 This repository is a desktop application, not a browser-only web application. Its UI uses web technologies, but scanning local folders, launching FFmpeg and capturing export frames depend on Electron/Node. A web version would need a server rendering backend or a separate browser-compatible media pipeline.
 
+### Packaged render regression test
+
+Before distributing a build, launch the packaged app with `--remote-debugging-port=9222`, then run `node scripts/verify-packaged-render.mjs --ffmpeg="/absolute/path/to/the/packaged/ffmpeg"`. Optionally pass `--output-folder="/your/existing/output"` to test that folder with a removable write probe. The test creates temporary synthetic audio, exercises the real IPC output check, metadata parser and render queue, then decodes the finished MP4. It does not render your music library or change your saved output setting.
+
 ---
 
 ## Technical Performance Optimization Notes
