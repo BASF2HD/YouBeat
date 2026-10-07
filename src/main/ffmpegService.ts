@@ -358,7 +358,7 @@ export async function renderAlbumVideo(
   const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
   const coverflowSizes = getCoverflowFontSizes(settings);
   const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v5 T${coverflowSizes.song} A${coverflowSizes.album}`
-    : getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v3' : ' - Classic Cover v3';
+    : getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v4' : ' - Classic Cover v4';
   const audioSuffix = settings.audioCodec === 'aac' ? ' - AAC 384' : ' - Lossless';
   const mixSuffix = album.id.startsWith('mix-')
     ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`

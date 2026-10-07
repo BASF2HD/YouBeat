@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
+import { shuffleMixOrder } from '../shared/mixOrder';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 import appLogo from '../../resources/albumforge-icon.png';
@@ -437,6 +438,14 @@ export default function App() {
     const target = index + direction;
     if (target < 0 || target >= mixTrackPaths.length) return;
     reorderMixTrack(mixTrackPaths[index], mixTrackPaths[target]);
+  };
+
+  const shuffleMixTracks = () => {
+    if (mixTrackPaths.length < 2) return;
+    const activePath = mixTrackPaths[mixPreviewIndex];
+    const next = shuffleMixOrder(mixTrackPaths);
+    setMixTrackPaths(next);
+    setMixPreviewIndex(Math.max(0, next.indexOf(activePath)));
   };
 
   // Actions
@@ -1095,7 +1104,13 @@ export default function App() {
                     {filteredMixTracks.length > 500 && <p className="mix-empty">Showing the first 500 matches. Select all includes all {filteredMixTracks.length} matching songs.</p>}
                   </section>
                   <section className="mix-song-panel" aria-label="Mix order">
-                    <h4>Playback order · {orderedMixTracks.length} songs</h4>
+                    <div className="mix-song-panel-heading">
+                      <strong>Playback order · {orderedMixTracks.length} songs</strong>
+                      <button type="button" className="mix-shuffle-button" onClick={shuffleMixTracks} disabled={orderedMixTracks.length < 2} title="Randomize playback order" aria-label="Shuffle playback order">
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h3c5 0 7 12 12 12h3M3 18h3c5 0 7-12 12-12h3M18 3l3 3-3 3M18 15l3 3-3 3" /></svg>
+                        Shuffle
+                      </button>
+                    </div>
                     {orderedMixTracks.length ? orderedMixTracks.map(({ track, album }, index) => (
                       <div className={`mix-song-row ${previewActiveIndex === index ? 'is-previewing' : ''} ${dragOverMixPath === track.filePath && draggedMixPath !== track.filePath ? 'is-drop-target' : ''}`} key={track.filePath}
                         onDragOver={event => { if (draggedMixPath && draggedMixPath !== track.filePath) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDragOverMixPath(track.filePath); } }}
@@ -1665,6 +1680,8 @@ export default function App() {
                                 className={`preview-tracklist ${previewTrackLayout!.compact ? 'preview-dense' : ''}`}
                                 style={{
                                   gridTemplateRows: `repeat(${previewTrackLayout!.rows}, minmax(0, 1fr))`,
+                                  maxHeight: `${previewTrackLayout!.rows * previewTrackLayout!.rowHeight / previewTrackLayout!.frameWidth * 100}cqw`,
+                                  fontSize: `${previewTrackLayout!.artistSize / previewTrackLayout!.frameWidth * 100}cqw`,
                                 }}
                               >
                                 {selectedAlbum.tracks.slice(previewTrackLayout!.start, previewTrackLayout!.end).map((track, i) => (
@@ -1683,7 +1700,7 @@ export default function App() {
                                       <span>{String(track.trackNumber || i + previewTrackLayout!.start + 1).padStart(2, '0')}</span>
                                     </div>
                                     <div className="preview-track-info-col">
-                                      <div className="preview-track-title">{track.title}</div>
+                                      <div className="preview-track-title" style={{ fontSize: `${previewTrackLayout!.titleSize / previewTrackLayout!.frameWidth * 100}cqw` }}>{track.title}</div>
                                       {!previewTrackLayout!.compact &&
                                         <div className="preview-track-artist" style={{ fontStyle: settings.artistItalic ? 'italic' : 'normal' }}>
                                           {track.artist}

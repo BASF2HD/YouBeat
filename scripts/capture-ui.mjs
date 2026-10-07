@@ -7,6 +7,8 @@ const openLogs = process.argv.includes('--logs');
 const openMix = process.argv.includes('--mix');
 const domOnly = process.argv.includes('--dom-only');
 const verifyMixControls = process.argv.includes('--verify-mix-controls');
+const verifyShuffle = process.argv.includes('--verify-shuffle');
+const verifySelectionCards = process.argv.includes('--verify-selection-cards');
 const verifyCoverflowMotion = process.argv.includes('--verify-coverflow-motion');
 const verifyCoverflowSettings = process.argv.includes('--verify-coverflow-settings');
 const scrollFontSettings = process.argv.includes('--scroll-font-settings');
@@ -77,7 +79,7 @@ if (enableJewelCase) {
   await new Promise(resolve => setTimeout(resolve, 100));
   await send('Runtime.evaluate', {
     expression: `(() => {
-      const input = document.querySelector('.jewel-case-setting input');
+      const input = document.querySelector('input[name="artwork-theme"][value="jewel"]');
       if (input && !input.checked) input.click();
     })()`,
   });
@@ -240,6 +242,53 @@ if (verifyMixControls) {
   const checks = result.result.value;
   if (checks.error || !checks.selectedAll || !checks.dragMoved || !checks.previewAdvanced) throw new Error(`Mix UI check failed: ${JSON.stringify(checks)}`);
   console.log(`Mix UI checks passed: ${JSON.stringify(checks)}`);
+}
+
+if (verifyShuffle) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      const wait = () => new Promise(resolve => setTimeout(resolve, 100));
+      const rows = () => [...document.querySelectorAll('section[aria-label="Mix order"] .mix-song-row')];
+      const key = row => row.querySelector('.mix-drag-handle')?.getAttribute('aria-label');
+      const order = () => rows().map(key);
+      rows()[Math.min(3, rows().length - 1)]?.querySelector('.mix-preview-choice')?.click();
+      await wait();
+      const before = order(), active = key(rows().find(row => row.classList.contains('is-previewing')));
+      const button = document.querySelector('button[aria-label="Shuffle playback order"]');
+      button?.click(); await wait();
+      const after = order();
+      return { count: after.length, enabled: button && !button.disabled,
+        changed: JSON.stringify(before) !== JSON.stringify(after),
+        sameSongs: JSON.stringify([...before].sort()) === JSON.stringify([...after].sort()),
+        activePreserved: key(rows().find(row => row.classList.contains('is-previewing'))) === active,
+        numbersSequential: rows().every((row, index) => Number(row.querySelector('.mix-preview-choice').textContent) === index + 1) };
+    })()`, awaitPromise: true, returnByValue: true,
+  });
+  const checks = result.result.value;
+  if (!checks.enabled || !checks.changed || !checks.sameSongs || !checks.activePreserved || !checks.numbersSequential) throw new Error(`Shuffle UI check failed: ${JSON.stringify(checks)}`);
+  console.log(`Shuffle UI checks passed: ${JSON.stringify(checks)}`);
+}
+
+if (verifySelectionCards) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      const wait = () => new Promise(resolve => setTimeout(resolve, 100));
+      const original = document.querySelector('.theme-card.active');
+      const results = [];
+      for (const card of [...document.querySelectorAll('.theme-card')]) {
+        card.click(); await wait();
+        const inactive = [...document.querySelectorAll('.theme-card:not(.active), .artwork-theme-choice:not(.active)')];
+        results.push({ theme: card.textContent.trim(), cards: inactive.map(item => {
+          const style = getComputedStyle(item); return { border: style.borderTopColor, width: style.borderTopWidth, style: style.borderTopStyle };
+        }) });
+      }
+      original?.click(); await wait();
+      return results;
+    })()`, awaitPromise: true, returnByValue: true,
+  });
+  const checks = result.result.value;
+  if (checks.length !== 2 || checks.some(check => check.cards.length !== 3 || check.cards.some(card => card.width !== '1px' || card.style !== 'solid' || !['rgb(75, 80, 96)', 'rgb(166, 175, 189)'].includes(card.border)))) throw new Error(`Selection borders check failed: ${JSON.stringify(checks)}`);
+  console.log(`Selection borders checks passed: ${JSON.stringify(checks)}`);
 }
 
 if (verifyCoverflowMotion) {

@@ -183,8 +183,8 @@ export function getSlideHTML(
           width: 100%;
           height: 100%;
           display: flex;
-          padding: 40px 50px;
-          gap: 45px;
+          padding: ${40 * layout.scale}px ${50 * layout.scale}px;
+          gap: ${20 * layout.scale}px;
           align-items: center;
           background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 70%), 
                       linear-gradient(135deg, rgba(255,255,255,0.01) 0%, rgba(0,0,0,0.6) 100%);
@@ -192,7 +192,7 @@ export function getSlideHTML(
 
         /* Left Side: Cover Art (Large & Prominent) */
         .left-panel {
-          flex: 0 0 52%;
+          flex: 0 0 46%;
           height: 100%;
           display: flex;
           align-items: center;
@@ -202,10 +202,10 @@ export function getSlideHTML(
 
         .cover-art-container {
           position: relative;
-          height: 100%;
-          max-height: 980px;
+          height: auto;
+          max-height: 100%;
           aspect-ratio: 1/1;
-          width: auto;
+          width: 100%;
           max-width: 100%;
           box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);
           border-radius: 0;
@@ -281,35 +281,39 @@ export function getSlideHTML(
           display: flex;
           flex-direction: column;
           justify-content: flex-start;
-          padding-left: 10px;
+          padding-left: 0;
           min-width: 0;
         }
 
         .album-header {
-          margin-bottom: 12px;
+          margin-bottom: ${12 * layout.scale}px;
           border-bottom: 2px solid rgba(255,255,255,0.06);
-          padding-bottom: 12px;
+          padding-bottom: ${12 * layout.scale}px;
           flex-shrink: 0;
         }
 
         .album-name {
-          font-size: 40px;
+          font-size: ${40 * layout.scale}px;
           font-weight: 800;
           letter-spacing: -0.5px;
           color: #ffffff;
           line-height: 1.2;
-          margin-bottom: 8px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-bottom: ${8 * layout.scale}px;
           text-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
         .album-meta {
-          font-size: 16px;
+          font-size: ${16 * layout.scale}px;
           color: rgba(255, 255, 255, 0.45);
           font-weight: 500;
         }
 
         .tracklist {
           flex: 1;
+          max-height: ${layout.rows * layout.rowHeight}px;
           min-height: 0;
           display: grid;
           grid-template-columns: minmax(0, 1fr);
@@ -320,10 +324,10 @@ export function getSlideHTML(
         .track-item {
           display: flex;
           align-items: center;
-          border-radius: 8px;
-          padding-left: 14px;
-          padding-right: 14px;
-          gap: 12px;
+          border-radius: 4px;
+          padding-left: ${8 * layout.scale}px;
+          padding-right: ${8 * layout.scale}px;
+          gap: ${8 * layout.scale}px;
           min-height: 0;
           background: transparent;
         }
@@ -333,15 +337,15 @@ export function getSlideHTML(
         }
 
         .track-icon-col {
-          width: 64px;
+          width: ${64 * layout.scale}px;
           display: grid;
-          grid-template-columns: 22px 1fr;
+          grid-template-columns: ${22 * layout.scale}px 1fr;
           align-items: center;
-          gap: 8px;
+          gap: ${8 * layout.scale}px;
           flex-shrink: 0;
         }
 
-        .track-play-mark { color: ${settings.activeColor}; font-size: 22px; line-height: 1; }
+        .track-play-mark { color: ${settings.activeColor}; font-size: ${22 * layout.scale}px; line-height: 1; }
 
         .track-num {
           font-weight: 600;
