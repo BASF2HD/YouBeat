@@ -112,12 +112,18 @@ export function getSlideHTML(
     ? `<img class="jewel-case-overlay" src="${escapeHtml(jewelCaseSrc!)}" />`
     : '';
   const coverflowCover = (index: number) => coverSources[index] || coverImgSrc;
+  const sideCount = Math.min(3, Math.floor((trackCount - 1) / 2));
+  const flowOffsets = Array.from({ length: sideCount * 2 + 1 }, (_, index) => index - sideCount);
+  const coverflowCards = flowOffsets.map(offset => {
+    const index = (activeTrackIndex + offset + trackCount) % trackCount;
+    const source = escapeHtml(coverflowCover(index));
+    const position = offset === 0 ? 'center' : `${offset < 0 ? 'left' : 'right'}-${Math.abs(offset)}`;
+    return `<div class="coverflow-item coverflow-${position}"><img class="coverflow-cover" src="${source}" /><img class="coverflow-reflection" src="${source}" /></div>`;
+  }).join('');
   const coverflowHTML = `
     <div class="coverflow-stage">
-      ${activeTrackIndex > 0 ? `<img class="coverflow-card coverflow-previous" src="${escapeHtml(coverflowCover(activeTrackIndex - 1))}" />` : ''}
-      <img class="coverflow-card coverflow-current" src="${escapeHtml(coverflowCover(activeTrackIndex))}" />
-      ${activeTrackIndex < trackCount - 1 ? `<img class="coverflow-card coverflow-next" src="${escapeHtml(coverflowCover(activeTrackIndex + 1))}" />` : ''}
-      <div class="coverflow-caption"><span>NOW PLAYING · ${String(activeTrackIndex + 1).padStart(2, '0')} / ${String(trackCount).padStart(2, '0')}</span><strong>${escapeHtml(album.tracks[activeTrackIndex]?.title || album.albumName)}</strong><small>${escapeHtml(album.tracks[activeTrackIndex]?.artist || '')} · ${escapeHtml(album.tracks[activeTrackIndex]?.album || album.albumName)}</small></div>
+      ${coverflowCards}
+      <div class="coverflow-caption"><strong>${escapeHtml(album.tracks[activeTrackIndex]?.title || album.albumName)}</strong><small>${escapeHtml(album.tracks[activeTrackIndex]?.artist || '')}${album.tracks[activeTrackIndex]?.album ? ` · ${escapeHtml(album.tracks[activeTrackIndex].album!)}` : ''}</small></div>
     </div>`;
 
   const tracksToRender = album.tracks.slice(layout.start, layout.end);
@@ -236,15 +242,25 @@ export function getSlideHTML(
           pointer-events: none;
         }
 
-        .coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 1200px; }
-        .coverflow-card { position: absolute; left: 50%; top: 40%; width: 62%; max-height: 64%; aspect-ratio: 1; object-fit: cover; border: 1px solid rgba(255,255,255,.22); box-shadow: 0 18px 42px rgba(0,0,0,.72); }
-        .coverflow-current { z-index: 3; transform: translate(-50%,-50%); }
-        .coverflow-previous { z-index: 2; width: 46%; opacity: .58; transform: translate(-50%,-50%) translateX(-73%) rotateY(30deg) scale(.82); }
-        .coverflow-next { z-index: 2; width: 46%; opacity: .58; transform: translate(-50%,-50%) translateX(73%) rotateY(-30deg) scale(.82); }
-        .coverflow-caption { position: absolute; left: 8%; right: 8%; bottom: 3%; display: flex; flex-direction: column; gap: 7px; text-align: center; overflow: hidden; }
-        .coverflow-caption span { font-size: 14px; letter-spacing: .18em; color: ${settings.activeColor}; font-weight: 800; }
-        .coverflow-caption strong { font-size: 30px; line-height: 1.12; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .coverflow-caption small { font-size: 17px; color: rgba(255,255,255,.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .container.coverflow-layout { display: block; padding: 0; background: #000; }
+        .coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 1200px; overflow: hidden; background: #000; }
+        .coverflow-item { position: absolute; width: min(50vw, 72vh); aspect-ratio: 1; top: 4%; transform-style: preserve-3d; }
+        .coverflow-cover, .coverflow-reflection { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+        .coverflow-cover { border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 30px rgba(0,0,0,.8); }
+        .coverflow-reflection { position: absolute; left: 0; top: 100%; transform: scaleY(-1); transform-origin: center; opacity: .32; -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
+        .coverflow-center { left: 50%; z-index: 7; transform: translateX(-50%); }
+        .coverflow-left-1, .coverflow-right-1 { z-index: 6; top: 15%; width: min(33vw, 47vh); }
+        .coverflow-left-2, .coverflow-right-2 { z-index: 5; top: 18%; width: min(30vw, 43vh); }
+        .coverflow-left-3, .coverflow-right-3 { z-index: 4; top: 21%; width: min(27vw, 39vh); }
+        .coverflow-left-1 { left: 25%; transform: translateX(-50%) rotateY(50deg); }
+        .coverflow-right-1 { left: 75%; transform: translateX(-50%) rotateY(-50deg); }
+        .coverflow-left-2 { left: 12%; transform: translateX(-50%) rotateY(50deg); }
+        .coverflow-right-2 { left: 88%; transform: translateX(-50%) rotateY(-50deg); }
+        .coverflow-left-3 { left: 0%; transform: translateX(-50%) rotateY(50deg); }
+        .coverflow-right-3 { left: 100%; transform: translateX(-50%) rotateY(-50deg); }
+        .coverflow-caption { position: absolute; z-index: 10; left: 19%; right: 19%; bottom: 5%; display: flex; flex-direction: column; gap: 5px; align-items: center; text-align: center; overflow: hidden; text-shadow: 0 2px 10px #000; }
+        .coverflow-caption strong { font-size: 40px; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .coverflow-caption small { font-size: 21px; color: rgba(255,255,255,.68); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Right Side: Track List */
         .right-panel {
@@ -367,12 +383,13 @@ export function getSlideHTML(
       </style>
     </head>
     <body>
-      <div class="container">
+      <div class="container ${artworkTheme === 'coverflow' ? 'coverflow-layout' : ''}">
+        ${artworkTheme === 'coverflow' ? coverflowHTML : `
         <div class="left-panel">
-          ${artworkTheme === 'coverflow' ? coverflowHTML : `<div class="${coverContainerClass}">
+          <div class="${coverContainerClass}">
             <img class="cover-art" src="${coverImgSrc}" />
             ${jewelCaseOverlayHTML}
-          </div>`}
+          </div>
         </div>
         <div class="right-panel">
           <div class="album-header">
@@ -388,6 +405,7 @@ export function getSlideHTML(
             ${trackItemsHTML}
           </div>
         </div>
+        `}
       </div>
     </body>
     </html>

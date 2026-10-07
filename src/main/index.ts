@@ -483,7 +483,8 @@ async function prepareYouTubeVideo(filePath: string): Promise<YouTubeLocalVideo>
 }
 
 ipcMain.handle('youtube-status', async () => hasYouTubeCredentials() ? getYouTubeChannel() : null);
-ipcMain.handle('youtube-connect', async (_event, clientId: string) => connectYouTube(clientId.trim()));
+ipcMain.handle('youtube-connect', async (_event, clientId: string, emailHint: string) => connectYouTube(clientId.trim(), emailHint.trim()));
+ipcMain.handle('youtube-open-setup', async () => shell.openExternal('https://console.cloud.google.com/auth/clients'));
 ipcMain.handle('youtube-disconnect', async () => disconnectYouTube());
 ipcMain.handle('youtube-playlists', async (_event, pageToken = '') => listYouTubePlaylists(pageToken));
 ipcMain.handle('youtube-videos', async (_event, pageToken = '') => listYouTubeVideos(pageToken));

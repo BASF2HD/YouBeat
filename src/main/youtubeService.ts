@@ -47,8 +47,9 @@ async function tokenRequest(body: URLSearchParams): Promise<any> {
   return data;
 }
 
-export async function connectYouTube(clientId: string): Promise<YouTubeChannel> {
+export async function connectYouTube(clientId: string, emailHint = ''): Promise<YouTubeChannel> {
   if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('Enter a Google Desktop OAuth client ID ending in .apps.googleusercontent.com.');
+  if (emailHint && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailHint)) throw new Error('Enter a valid Google account email address, or leave it blank.');
   if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure OS credential storage is unavailable.');
   const verifier = crypto.randomBytes(48).toString('base64url');
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
@@ -78,6 +79,7 @@ export async function connectYouTube(clientId: string): Promise<YouTubeChannel> 
   const redirectUri = `http://127.0.0.1:${address.port}/oauth2callback`;
   const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   Object.entries({ client_id: clientId, redirect_uri: redirectUri, response_type: 'code', scope: SCOPES.join(' '), access_type: 'offline', prompt: 'consent', code_challenge: challenge, code_challenge_method: 'S256', state }).forEach(([key, value]) => authUrl.searchParams.set(key, value));
+  if (emailHint) authUrl.searchParams.set('login_hint', emailHint);
   const timeout = setTimeout(() => rejectCode(new Error('YouTube sign-in timed out. Try again.')), 5 * 60 * 1000);
   try {
     await shell.openExternal(authUrl.toString());

@@ -72,8 +72,8 @@ The first start installs dependencies, including the FFmpeg binary for that comp
 ### Connect YouTube
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create or select a project and enable **YouTube Data API v3**. Configure the OAuth consent screen for your Google account.
-2. Create an OAuth client of type **Desktop app**. Copy its client ID (ending in `.apps.googleusercontent.com`) into AlbumForge's **YouTube** tab, then click **Connect YouTube**.
-3. Approve access in your normal browser. AlbumForge stores the refresh token encrypted in this computer's OS-protected app data; it is never committed to Git. Each computer needs to be connected once.
+2. Create an OAuth client of type **Desktop app**. This client ID identifies AlbumForge to Google; it is not your email or password. Copy the ID (ending in `.apps.googleusercontent.com`) into the **One-time app connection setup** section of AlbumForge's **YouTube** tab.
+3. Optionally enter your Google email to preselect an account, then click **Continue with Google**. Enter your password only on Google's browser page and approve access there. AlbumForge stores the refresh token encrypted in this computer's OS-protected app data; it is never committed to Git. Each computer needs to be connected once.
 4. Choose a rendered MP4 from the YouTube tab or click **Upload** beside a completed queue item. Review title, chapters/description, and visibility before upload.
 
 Google requires browser-based consent for desktop apps. You cannot bundle a personal YouTube password or refresh token in a shared Git repository. Projects that have not completed Google's YouTube API audit may have uploads restricted to Private, even if another visibility is requested. Check the uploaded video's visibility in YouTube Studio.

@@ -10,6 +10,7 @@ const PREVIEW_PANE_MAX_WIDTH = 720;
 
 const clampPreviewPaneWidth = (width: number) =>
   Math.min(PREVIEW_PANE_MAX_WIDTH, Math.max(PREVIEW_PANE_MIN_WIDTH, width));
+const isGoogleClientId = (value: string) => /^[\w.-]+\.apps\.googleusercontent\.com$/.test(value.trim());
 
 // Supported font list for text layout
 const SYSTEM_FONTS = [
@@ -142,7 +143,15 @@ export default function App() {
   // Logging state
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [logsCopied, setLogsCopied] = useState(false);
-  const [youtubeClientId, setYoutubeClientId] = useState(() => localStorage.getItem('youtube_client_id') || '');
+  const [youtubeClientId, setYoutubeClientId] = useState(() => {
+    const saved = localStorage.getItem('youtube_client_id') || '';
+    return isGoogleClientId(saved) ? saved : '';
+  });
+  const youtubeClientReady = isGoogleClientId(youtubeClientId);
+  const [youtubeEmailHint, setYoutubeEmailHint] = useState(() => {
+    const saved = localStorage.getItem('youtube_client_id') || '';
+    return !isGoogleClientId(saved) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saved) ? saved : '';
+  });
   const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null);
   const [youtubePlaylists, setYoutubePlaylists] = useState<YouTubePlaylist[]>([]);
   const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
@@ -327,6 +336,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const savedClientId = localStorage.getItem('youtube_client_id') || '';
+    if (savedClientId && !isGoogleClientId(savedClientId)) localStorage.removeItem('youtube_client_id');
     window.api.youtubeStatus().then(channel => {
       setYoutubeChannel(channel);
       if (channel) Promise.all([window.api.youtubePlaylists(), window.api.youtubeVideos()]).then(([playlists, videos]) => {
@@ -340,8 +351,9 @@ export default function App() {
   const handleYouTubeConnect = async () => {
     setYoutubeBusy(true); setYoutubeError('');
     try {
+      if (!youtubeClientReady) throw new Error('Complete the one-time setup with a valid Desktop app client ID first.');
+      const channel = await window.api.youtubeConnect(youtubeClientId.trim(), youtubeEmailHint.trim());
       localStorage.setItem('youtube_client_id', youtubeClientId.trim());
-      const channel = await window.api.youtubeConnect(youtubeClientId.trim());
       setYoutubeChannel(channel);
       const [playlists, videos] = await Promise.all([window.api.youtubePlaylists(), window.api.youtubeVideos()]);
       setYoutubePlaylists(playlists.items); setYoutubePlaylistPage(playlists.nextPageToken || '');
@@ -761,6 +773,7 @@ export default function App() {
   } : null;
   const selectedAlbum = activeTab === 'mix' ? mixPreviewAlbum : albums.find(a => a.id === selectedAlbumId) || null;
   const previewActiveIndex = activeTab === 'mix' ? Math.min(mixPreviewIndex, (selectedAlbum?.tracks.length || 1) - 1) : 0;
+  const previewFlowSideCount = Math.min(3, Math.floor(((selectedAlbum?.tracks.length || 1) - 1) / 2));
   const previewTrackLayout = selectedAlbum
     ? getTrackLayout(selectedAlbum.tracks.length, previewActiveIndex, settings.resolution)
     : null;
@@ -1210,10 +1223,17 @@ export default function App() {
                 {youtubeError && <div className="youtube-error" role="alert">{youtubeError}</div>}
                 {!youtubeChannel ? (
                   <section className="youtube-card">
-                    <h4>Connect your channel</h4>
-                    <p>Enable YouTube Data API v3 in a Google Cloud project, create an OAuth client of type <strong>Desktop app</strong>, and enter its client ID below. Google consent opens in your normal browser; uploads and channel browsing stay in AlbumForge. No credentials are put in Git.</p>
-                    <label className="input-group"><span className="input-label">Google Desktop OAuth client ID</span><input className="text-input" value={youtubeClientId} onChange={event => setYoutubeClientId(event.target.value)} placeholder="...apps.googleusercontent.com" /></label>
-                    <button className="btn btn-primary" onClick={handleYouTubeConnect} disabled={youtubeBusy || !youtubeClientId.trim()}>{youtubeBusy ? 'Waiting for Google…' : 'Connect YouTube'}</button>
+                    <h4>Sign in with Google</h4>
+                    <p>Enter your Google email if you want to preselect an account. Google will ask for your password in its own browser sign-in page—never in AlbumForge.</p>
+                    <label className="input-group"><span className="input-label">Google email (optional)</span><input type="email" className="text-input" value={youtubeEmailHint} onChange={event => setYoutubeEmailHint(event.target.value)} placeholder="you@gmail.com" autoComplete="email" /></label>
+                    <details className="youtube-setup" open={!youtubeClientReady}>
+                      <summary>One-time app connection setup</summary>
+                      <p>The client ID identifies AlbumForge to Google; it is <strong>not</strong> your email or password. Create a Google Cloud project, enable YouTube Data API v3, then create an OAuth client of type <strong>Desktop app</strong>. Copy its client ID here once on each computer.</p>
+                      <button type="button" className="btn btn-secondary" onClick={() => window.api.youtubeOpenSetup()}>Open Google Cloud clients</button>
+                      <label className="input-group"><span className="input-label">Desktop app client ID</span><input className="text-input" value={youtubeClientId} onChange={event => setYoutubeClientId(event.target.value)} placeholder="...apps.googleusercontent.com" /></label>
+                    </details>
+                    <button className="btn btn-primary" onClick={handleYouTubeConnect} disabled={youtubeBusy || !youtubeClientReady}>{youtubeBusy ? 'Waiting for Google…' : 'Continue with Google'}</button>
+                    {!youtubeClientReady && <small>Finish the one-time setup above to enable Google sign-in.</small>}
                     <small>New unverified API projects may have uploads restricted to Private until Google approves the project.</small>
                   </section>
                 ) : (
@@ -1622,7 +1642,7 @@ export default function App() {
           </div>
 
           {/* Right sidebar: Live Visual Layout Preview */}
-          {showPreviewPane && activeTab !== 'youtube' ? (
+          {activeTab !== 'youtube' && (showPreviewPane ? (
             <aside className="preview-pane-shell">
               <div
                 className="preview-resize-handle"
@@ -1688,22 +1708,23 @@ export default function App() {
                     <>
                       {showPreviewCanvas && (
                         <div className="preview-stage-card">
-                          <div className="visual-preview-canvas" style={{ backgroundColor: settings.backgroundColor }}>
+                          <div className={`visual-preview-canvas ${getArtworkTheme(settings) === 'coverflow' ? 'preview-flow-layout' : ''}`} style={{ backgroundColor: settings.backgroundColor }}>
                             <div className="canvas-bg-glow" />
-
-                            <div className={`preview-left ${getArtworkTheme(settings) === 'coverflow' ? 'preview-coverflow' : ''}`}>
-                              {getArtworkTheme(settings) === 'coverflow' ? (
-                                <div className="preview-coverflow-stage">
-                                  {([-1, 0, 1] as const).map(offset => {
-                                    const index = previewActiveIndex + offset;
-                                    if (index < 0 || index >= selectedAlbum.tracks.length) return null;
-                                    const coverPath = selectedAlbum.tracks[index].coverPath || selectedAlbum.coverPath;
-                                    return coverPath ? <img key={index} className={`preview-flow-card preview-flow-${offset === -1 ? 'previous' : offset === 1 ? 'next' : 'current'}`} src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" />
-                                      : <div key={index} className={`preview-flow-card preview-flow-fallback preview-flow-${offset === -1 ? 'previous' : offset === 1 ? 'next' : 'current'}`}>AF</div>;
-                                  })}
-                                  <div className="preview-coverflow-caption"><small>NOW PLAYING · {previewActiveIndex + 1} / {selectedAlbum.tracks.length}</small><strong>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong></div>
-                                </div>
-                              ) : <div className={`preview-cover-art-container ${getArtworkTheme(settings) === 'jewel' ? 'jewel-case-enabled' : ''}`}>
+                            {getArtworkTheme(settings) === 'coverflow' ? (
+                              <div className="preview-coverflow-stage" style={{ fontFamily: settings.fontFamily }}>
+                                {Array.from({ length: previewFlowSideCount * 2 + 1 }, (_, index) => index - previewFlowSideCount).map(offset => {
+                                  const index = (previewActiveIndex + offset + selectedAlbum.tracks.length) % selectedAlbum.tracks.length;
+                                  const coverPath = selectedAlbum.tracks[index].coverPath || selectedAlbum.coverPath;
+                                  const position = offset === 0 ? 'center' : `${offset < 0 ? 'left' : 'right'}-${Math.abs(offset)}`;
+                                  return <div key={offset} className={`preview-flow-item preview-flow-${position}`}>
+                                    {coverPath ? <><img className="preview-flow-cover" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /><img className="preview-flow-reflection" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /></> : <div className="preview-flow-fallback">AF</div>}
+                                  </div>;
+                                })}
+                                <div className="preview-coverflow-caption"><strong>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small>{selectedAlbum.tracks[previewActiveIndex]?.artist}{selectedAlbum.tracks[previewActiveIndex]?.album ? ` · ${selectedAlbum.tracks[previewActiveIndex].album}` : ''}</small></div>
+                              </div>
+                            ) : <>
+                            <div className="preview-left">
+                              <div className={`preview-cover-art-container ${getArtworkTheme(settings) === 'jewel' ? 'jewel-case-enabled' : ''}`}>
                                 {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
                                   <img className="preview-cover-art" src={`file:///${(selectedAlbum.tracks[previewActiveIndex]?.coverPath || selectedAlbum.coverPath).replace(/\\/g, '/')}`} />
                                 ) : (
@@ -1715,7 +1736,7 @@ export default function App() {
                                 {getArtworkTheme(settings) === 'jewel' && (
                                   <img className="preview-jewel-case-overlay" src={jewelCaseOverlay} alt="" />
                                 )}
-                              </div>}
+                              </div>
                             </div>
 
                             <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
@@ -1757,6 +1778,7 @@ export default function App() {
                                 ))}
                               </div>
                             </div>
+                            </>}
                           </div>
                           <div className="preview-stage-meta">
                             <span><i /> Layout preview</span>
@@ -1817,7 +1839,7 @@ export default function App() {
               </button>
               <span className="collapsed-preview-text">Live Preview</span>
             </aside>
-          )}
+          ))}
 
         </div>
       </main>

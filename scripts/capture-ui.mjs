@@ -6,6 +6,7 @@ const openSettings = process.argv.includes('--settings');
 const openLogs = process.argv.includes('--logs');
 const openMix = process.argv.includes('--mix');
 const openYouTube = process.argv.includes('--youtube');
+const domOnly = process.argv.includes('--dom-only');
 const coverflowTheme = process.argv.includes('--coverflow-theme');
 const mixSelectCountArg = process.argv.find(argument => argument.startsWith('--mix-select-count='));
 const mixSelectCount = mixSelectCountArg ? Number(mixSelectCountArg.split('=')[1]) : 0;
@@ -17,7 +18,7 @@ const selectFirst = process.argv.includes('--select-first');
 const selectAlbumArg = process.argv.find(argument => argument.startsWith('--select-album='));
 const selectAlbum = selectAlbumArg?.slice('--select-album='.length);
 const previewWidthArg = process.argv.find(argument => argument.startsWith('--preview-width='));
-const targets = await fetch('http://127.0.0.1:9222/json/list').then(response => response.json());
+const targets = await fetch('http://127.0.0.1:9222/json/list', { signal: AbortSignal.timeout(10000) }).then(response => response.json());
 const target = targets.find(item => item.title === 'AlbumForge Studio');
 
 if (!target) {
@@ -26,7 +27,8 @@ if (!target) {
 
 const socket = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => {
-  socket.addEventListener('open', resolve, { once: true });
+  const timer = setTimeout(() => reject(new Error('Timed out connecting to the app debugger')), 10000);
+  socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
   socket.addEventListener('error', reject, { once: true });
 });
 
@@ -44,7 +46,8 @@ socket.addEventListener('message', event => {
 
 const send = (method, params = {}) => new Promise((resolve, reject) => {
   const id = ++messageId;
-  pending.set(id, { resolve, reject });
+  const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Timed out waiting for ${method}`)); }, 10000);
+  pending.set(id, { resolve: value => { clearTimeout(timer); resolve(value); }, reject: error => { clearTimeout(timer); reject(error); } });
   socket.send(JSON.stringify({ id, method, params }));
 });
 
@@ -174,6 +177,13 @@ if (selectCount > 0) {
     })()`,
   });
   await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+if (domOnly) {
+  const result = await send('Runtime.evaluate', { expression: `({ text: document.body.innerText.slice(0, 1000), width: document.body.scrollWidth, height: document.body.scrollHeight })`, returnByValue: true });
+  console.log(result.result.value);
+  socket.close();
+  process.exit(0);
 }
 
 const screenshot = await send('Page.captureScreenshot', {

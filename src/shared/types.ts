@@ -91,7 +91,8 @@ export interface IPCAPI {
   testOutputWritable: (outDir: string) => Promise<{ ok: boolean; message: string }>;
   getDefaultOutputFolder: () => Promise<string>;
   youtubeStatus: () => Promise<YouTubeChannel | null>;
-  youtubeConnect: (clientId: string) => Promise<YouTubeChannel>;
+  youtubeConnect: (clientId: string, emailHint: string) => Promise<YouTubeChannel>;
+  youtubeOpenSetup: () => Promise<void>;
   youtubeDisconnect: () => Promise<void>;
   youtubePlaylists: (pageToken?: string) => Promise<YouTubePage<YouTubePlaylist>>;
   youtubeVideos: (pageToken?: string) => Promise<YouTubePage<YouTubeVideo>>;
