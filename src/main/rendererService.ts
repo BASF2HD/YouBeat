@@ -4,6 +4,7 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { Album, RenderSettings } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
+import { getArtworkTheme } from '../shared/artworkTheme';
 
 /**
  * Escapes HTML characters to prevent XSS/rendering issues with metadata text.
@@ -88,7 +89,8 @@ export function getSlideHTML(
   activeTrackIndex: number,
   settings: RenderSettings,
   coverBase64: string | null,
-  jewelCaseSrc: string | null = null
+  jewelCaseSrc: string | null = null,
+  coverSources: string[] = []
 ): string {
   const trackCount = album.tracks.length;
   const layout = getTrackLayout(trackCount, activeTrackIndex, settings.resolution);
@@ -102,11 +104,21 @@ export function getSlideHTML(
     coverImgSrc = `data:image/svg+xml;utf8,${encodeURIComponent(getDefaultCoverSVG(album.albumName, album.year))}`;
   }
 
-  const jewelCaseEnabled = settings.useJewelCase && Boolean(jewelCaseSrc);
+  const artworkTheme = getArtworkTheme(settings);
+  coverImgSrc = coverSources[activeTrackIndex] || coverImgSrc;
+  const jewelCaseEnabled = artworkTheme === 'jewel' && Boolean(jewelCaseSrc);
   const coverContainerClass = jewelCaseEnabled ? 'cover-art-container jewel-case-enabled' : 'cover-art-container';
   const jewelCaseOverlayHTML = jewelCaseEnabled
     ? `<img class="jewel-case-overlay" src="${escapeHtml(jewelCaseSrc!)}" />`
     : '';
+  const coverflowCover = (index: number) => coverSources[index] || coverImgSrc;
+  const coverflowHTML = `
+    <div class="coverflow-stage">
+      ${activeTrackIndex > 0 ? `<img class="coverflow-card coverflow-previous" src="${escapeHtml(coverflowCover(activeTrackIndex - 1))}" />` : ''}
+      <img class="coverflow-card coverflow-current" src="${escapeHtml(coverflowCover(activeTrackIndex))}" />
+      ${activeTrackIndex < trackCount - 1 ? `<img class="coverflow-card coverflow-next" src="${escapeHtml(coverflowCover(activeTrackIndex + 1))}" />` : ''}
+      <div class="coverflow-caption"><span>NOW PLAYING · ${String(activeTrackIndex + 1).padStart(2, '0')} / ${String(trackCount).padStart(2, '0')}</span><strong>${escapeHtml(album.tracks[activeTrackIndex]?.title || album.albumName)}</strong><small>${escapeHtml(album.tracks[activeTrackIndex]?.artist || '')} · ${escapeHtml(album.tracks[activeTrackIndex]?.album || album.albumName)}</small></div>
+    </div>`;
 
   const tracksToRender = album.tracks.slice(layout.start, layout.end);
 
@@ -223,6 +235,16 @@ export function getSlideHTML(
           object-fit: contain;
           pointer-events: none;
         }
+
+        .coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 1200px; }
+        .coverflow-card { position: absolute; left: 50%; top: 40%; width: 62%; max-height: 64%; aspect-ratio: 1; object-fit: cover; border: 1px solid rgba(255,255,255,.22); box-shadow: 0 18px 42px rgba(0,0,0,.72); }
+        .coverflow-current { z-index: 3; transform: translate(-50%,-50%); }
+        .coverflow-previous { z-index: 2; width: 46%; opacity: .58; transform: translate(-50%,-50%) translateX(-73%) rotateY(30deg) scale(.82); }
+        .coverflow-next { z-index: 2; width: 46%; opacity: .58; transform: translate(-50%,-50%) translateX(73%) rotateY(-30deg) scale(.82); }
+        .coverflow-caption { position: absolute; left: 8%; right: 8%; bottom: 3%; display: flex; flex-direction: column; gap: 7px; text-align: center; overflow: hidden; }
+        .coverflow-caption span { font-size: 14px; letter-spacing: .18em; color: ${settings.activeColor}; font-weight: 800; }
+        .coverflow-caption strong { font-size: 30px; line-height: 1.12; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .coverflow-caption small { font-size: 17px; color: rgba(255,255,255,.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Right Side: Track List */
         .right-panel {
@@ -347,10 +369,10 @@ export function getSlideHTML(
     <body>
       <div class="container">
         <div class="left-panel">
-          <div class="${coverContainerClass}">
+          ${artworkTheme === 'coverflow' ? coverflowHTML : `<div class="${coverContainerClass}">
             <img class="cover-art" src="${coverImgSrc}" />
             ${jewelCaseOverlayHTML}
-          </div>
+          </div>`}
         </div>
         <div class="right-panel">
           <div class="album-header">
@@ -394,8 +416,23 @@ export async function generateSlidesForAlbum(
     }
   }
 
+  // Resolve each song's artwork once. Mixed-song projects can carry a distinct
+  // cover on every track; normal albums reuse their single album cover.
+  const coverCache = new Map<string, string>();
+  const coverSources: string[] = [];
+  for (const track of album.tracks) {
+    const coverPath = track.coverPath || album.coverPath;
+    if (!coverPath || !fs.existsSync(coverPath)) { coverSources.push(''); continue; }
+    if (!coverCache.has(coverPath)) {
+      const extension = path.extname(coverPath).toLowerCase();
+      const mime = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
+      coverCache.set(coverPath, `data:${mime};base64,${(await fs.promises.readFile(coverPath)).toString('base64')}`);
+    }
+    coverSources.push(coverCache.get(coverPath)!);
+  }
+
   let jewelCaseSrc: string | null = null;
-  if (settings.useJewelCase) {
+  if (getArtworkTheme(settings) === 'jewel') {
     const jewelCasePath = path.join(__dirname, '../../resources/cd-jewel-case-overlay.png');
     if (fs.existsSync(jewelCasePath)) {
       jewelCaseSrc = pathToFileURL(jewelCasePath).href;
@@ -483,7 +520,7 @@ export async function generateSlidesForAlbum(
 
   try {
     for (let i = 0; i < album.tracks.length; i++) {
-      const htmlContent = getSlideHTML(album, i, settings, coverBase64, jewelCaseSrc);
+      const htmlContent = getSlideHTML(album, i, settings, coverBase64, jewelCaseSrc, coverSources);
       
       // Use a local HTML document instead of an oversized data URL. Large cover art
       // and jewel-case assets otherwise exceed Chromium's URL limits (ERR_INVALID_URL).

@@ -11,6 +11,9 @@ const renderVideo = process.argv.includes('--video') || longVideo;
 const forceCpu = process.argv.includes('--cpu');
 const useAac = process.argv.includes('--aac');
 const hiResAudio = process.argv.includes('--hires-audio');
+const mixedFormats = process.argv.includes('--mixed-formats');
+const coverflow = process.argv.includes('--coverflow');
+const mix = process.argv.includes('--mix');
 const trackCountArg = process.argv.find(arg => arg.startsWith('--track-count='));
 const resolutionArg = process.argv.find(arg => arg.startsWith('--resolution='));
 const trackCount = trackCountArg ? Number(trackCountArg.split('=')[1]) : 1;
@@ -52,6 +55,7 @@ const settings = {
   inactiveColor: '#888888',
   artistItalic: true,
   useJewelCase: true,
+  artworkTheme: coverflow ? 'coverflow' : 'jewel',
   exportQuality: 'medium',
   audioCodec: useAac ? 'aac' : 'alac',
   introDuration: 0,
@@ -65,6 +69,7 @@ const settings = {
 
 app.whenReady().then(async () => {
   fs.mkdirSync(outputDir, { recursive: true });
+  if (mix) { album.id = 'mix-smoke-test'; album.year = 'Mix'; album.albumName = 'Smoke Mix'; }
   if (!renderVideo) {
     album.tracks = Array.from({ length: trackCount }, (_, index) => ({
       ...album.tracks[0],
@@ -86,7 +91,7 @@ app.whenReady().then(async () => {
       const result = spawnSync(ffmpeg, [
         '-y', '-hide_banner', '-loglevel', 'error',
         '-f', 'lavfi', '-i', `sine=frequency=${440 + index * 220}:duration=${duration}`,
-        '-ar', hiResAudio ? '96000' : '44100', '-ac', '2',
+        '-ar', hiResAudio ? '96000' : mixedFormats && index === 1 ? '48000' : '44100', '-ac', mixedFormats && index === 1 ? '1' : '2',
         '-c:a', hiResAudio ? 'pcm_s24le' : 'pcm_s16le', filePath
       ], { stdio: 'inherit' });
       if (result.status !== 0) throw new Error(`Failed to create test audio ${index}`);
@@ -104,6 +109,20 @@ app.whenReady().then(async () => {
     album.totalDuration = trackDurations.reduce((sum, duration) => sum + duration, 0);
     const encoder = await resolveVideoCodecArgs('ffmpeg', settings.videoCodec, settings.exportQuality);
     console.log(`Encoder: ${encoder.codecName}`);
+  }
+  if (coverflow) {
+    const colors = ['#a62639', '#206c91', '#88612a'];
+    for (let index = 0; index < album.tracks.length; index++) {
+      const coverPath = path.join(outputDir, `cover_${index}.png`);
+      const result = spawnSync(resolveFfmpegPath('ffmpeg'), [
+        '-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi',
+        '-i', `color=c=${colors[index % colors.length]}:s=600x600`, '-frames:v', '1', coverPath,
+      ], { stdio: 'inherit' });
+      if (result.status !== 0) throw new Error('Could not create Cover Flow test cover');
+      album.tracks[index].coverPath = coverPath;
+    }
+    album.coverPath = album.tracks[0].coverPath;
+    album.coverFound = true;
   }
   const slides = await generateSlidesForAlbum(album, settings, outputDir);
   const slide = slides[0];
@@ -130,7 +149,7 @@ app.whenReady().then(async () => {
       throw new Error(`Unexpected output duration: ${actualDuration}s instead of ${album.totalDuration}s`);
     }
     const outputSize = fs.statSync(result.videoPath).size;
-    if (!useAac) {
+    if (!useAac && !mixedFormats) {
       const decodePcm = (filePath) => {
         const decoded = spawnSync(resolveFfmpegPath('ffmpeg'), [
           '-v', 'error', '-i', filePath, '-map', '0:a:0',

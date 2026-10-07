@@ -1,11 +1,13 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { app } from 'electron';
 import ffmpegStaticPath from 'ffmpeg-static';
 import * as mm from 'music-metadata';
 import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
+import { getArtworkTheme } from '../shared/artworkTheme';
 
 /**
  * Resolves the actual path to the ffmpeg executable.
@@ -352,7 +354,14 @@ export async function renderAlbumVideo(
   }
 
   // Build final clean safe video and folder name: "Album Name (Year)"
-  const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
+  const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
+  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ' - Cover Flow'
+    : getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case' : '';
+  const audioSuffix = settings.audioCodec === 'aac' ? ' - AAC 384' : ' - Lossless';
+  const mixSuffix = album.id.startsWith('mix-')
+    ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`
+    : '';
+  const outputStem = `${safeAlbumName}${mixSuffix}${themeSuffix}${audioSuffix}`;
   
   // Dedicated folder for each album inside the output directory
   const albumOutputDir = path.join(outDir, safeAlbumName);
@@ -360,9 +369,9 @@ export async function renderAlbumVideo(
     await fs.promises.mkdir(albumOutputDir, { recursive: true });
   }
 
-  const finalVideoPath = path.join(albumOutputDir, `${safeAlbumName}.mp4`);
-  const descriptionPath = path.join(albumOutputDir, `${safeAlbumName} - Description.txt`);
-  const thumbnailPath = path.join(albumOutputDir, `${safeAlbumName} - Thumbnail.jpg`);
+  const finalVideoPath = path.join(albumOutputDir, `${outputStem}.mp4`);
+  const descriptionPath = path.join(albumOutputDir, `${outputStem} - Description.txt`);
+  const thumbnailPath = path.join(albumOutputDir, `${outputStem} - Thumbnail.jpg`);
 
   // Fast Skip/Resume check: If video already rendered and valid (>1MB), skip immediately!
   if (settings.skipExisting && fs.existsSync(finalVideoPath)) {
@@ -403,24 +412,16 @@ export async function renderAlbumVideo(
   }
 
   const audioCodec = settings.audioCodec || 'alac';
-  const firstSource = audioSources[0];
-  if (audioCodec === 'alac' && audioSources.some(source =>
-    source.sampleRate !== firstSource.sampleRate || source.channels !== firstSource.channels
-  )) {
-    throw new Error('Lossless audio needs the same sample rate and channel count in every song. This album mixes formats; choose AAC in Settings or use matching source files.');
-  }
-
-  const audioSampleRate = audioCodec === 'alac'
-    ? firstSource.sampleRate
-    : Math.max(...audioSources.map(source => source.sampleRate));
-  const audioChannels = audioCodec === 'alac'
-    ? firstSource.channels
-    : Math.max(...audioSources.map(source => source.channels));
+  const audioSampleRate = Math.max(...audioSources.map(source => source.sampleRate));
+  const audioChannels = Math.max(...audioSources.map(source => source.channels));
+  const needsAudioNormalization = audioSources.some(source =>
+    source.sampleRate !== audioSampleRate || source.channels !== audioChannels
+  );
   const audioArgs = audioCodec === 'alac'
     ? ['-c:a', 'alac', '-sample_fmt', audioSources.some(source => source.bitsPerSample > 16) ? 's32p' : 's16p', '-ar', String(audioSampleRate), '-ac', String(audioChannels)]
     : ['-c:a', 'aac', '-profile:a', 'aac_low', '-ar', String(audioSampleRate), '-ac', String(audioChannels), '-b:a', audioChannels === 1 ? '192k' : audioChannels <= 2 ? '384k' : '512k'];
   log(audioCodec === 'alac'
-    ? `Audio Encoding: lossless ALAC, ${audioSampleRate} Hz, ${audioChannels} channel(s); source PCM is not downsampled.`
+    ? `Audio Encoding: ALAC, ${audioSampleRate} Hz, ${audioChannels} channel(s); ${needsAudioNormalization ? 'mixed source formats are resampled/upmixed to a common format before lossless encoding' : 'source PCM is not downsampled'}.`
     : `Audio Encoding: AAC-LC ${audioArgs[audioArgs.length - 1]}, ${audioSampleRate} Hz, ${audioChannels} channel(s); this mode is lossy.`, 'info');
 
   // A slide does not change during a track. Encode it at about one frame per second

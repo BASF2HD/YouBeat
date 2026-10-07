@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
+import { Album, RenderSettings, LogItem, Track, ScanProgressPayload, YouTubeChannel, YouTubePlaylist, YouTubeVideo, YouTubeLocalVideo } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
+import { getArtworkTheme } from '../shared/artworkTheme';
 import appLogo from '../../resources/albumforge-icon.png';
 import jewelCaseOverlay from '../../resources/cd-jewel-case-overlay.png';
 
@@ -99,7 +100,7 @@ export const PREDEFINED_PALETTES: ColorPalette[] = [
 
 export default function App() {
   // Tabs routing state
-  const [activeTab, setActiveTab] = useState<'library' | 'queue' | 'logs' | 'settings'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'mix' | 'queue' | 'logs' | 'settings' | 'youtube'>('library');
 
   // General App settings
   const [settings, setSettings] = useState<RenderSettings>({
@@ -110,6 +111,7 @@ export default function App() {
     inactiveColor: '#888888',
     artistItalic: true,
     useJewelCase: false,
+    artworkTheme: 'plain',
     exportQuality: 'medium',
     audioCodec: 'alac',
     introDuration: 0,
@@ -126,6 +128,10 @@ export default function App() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string | null>(null);
   const [selectedAlbumIds, setSelectedAlbumIds] = useState<Set<string>>(() => new Set());
+  const [mixTitle, setMixTitle] = useState('My Cover Flow Mix');
+  const [mixSearch, setMixSearch] = useState('');
+  const [mixTrackPaths, setMixTrackPaths] = useState<string[]>([]);
+  const [mixPreviewIndex, setMixPreviewIndex] = useState(0);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [scanProgress, setScanProgress] = useState<ScanProgressPayload | null>(null);
 
@@ -136,6 +142,22 @@ export default function App() {
   // Logging state
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [logsCopied, setLogsCopied] = useState(false);
+  const [youtubeClientId, setYoutubeClientId] = useState(() => localStorage.getItem('youtube_client_id') || '');
+  const [youtubeChannel, setYoutubeChannel] = useState<YouTubeChannel | null>(null);
+  const [youtubePlaylists, setYoutubePlaylists] = useState<YouTubePlaylist[]>([]);
+  const [youtubeVideos, setYoutubeVideos] = useState<YouTubeVideo[]>([]);
+  const [youtubeSelectedPlaylist, setYoutubeSelectedPlaylist] = useState<YouTubePlaylist | null>(null);
+  const [youtubePlaylistVideos, setYoutubePlaylistVideos] = useState<YouTubeVideo[]>([]);
+  const [youtubePlaylistVideosPage, setYoutubePlaylistVideosPage] = useState('');
+  const [youtubePlaylistPage, setYoutubePlaylistPage] = useState('');
+  const [youtubeVideoPage, setYoutubeVideoPage] = useState('');
+  const [youtubeVideo, setYoutubeVideo] = useState<YouTubeLocalVideo | null>(null);
+  const [youtubePrivacy, setYoutubePrivacy] = useState<'private' | 'unlisted' | 'public'>('private');
+  const [youtubeBusy, setYoutubeBusy] = useState(false);
+  const [youtubeUploading, setYoutubeUploading] = useState(false);
+  const [youtubeUploadProgress, setYoutubeUploadProgress] = useState(0);
+  const [youtubeUploadUrl, setYoutubeUploadUrl] = useState('');
+  const [youtubeError, setYoutubeError] = useState('');
   const terminalEndRef = useRef<HTMLDivElement>(null);
   const workspaceContentRef = useRef<HTMLDivElement>(null);
   const selectAllAlbumsRef = useRef<HTMLInputElement>(null);
@@ -270,7 +292,7 @@ export default function App() {
     if (savedSettings) {
       try {
         const { fps: _obsoleteFps, ...parsed } = JSON.parse(savedSettings);
-        setSettings(prev => ({ ...prev, ...parsed }));
+        setSettings(prev => ({ ...prev, ...parsed, artworkTheme: parsed.artworkTheme || (parsed.useJewelCase ? 'jewel' : 'plain') }));
         if (parsed.outputFolder) persistedHasOutput = true;
       } catch (err) {
         console.error('Failed to parse saved settings:', err);
@@ -303,6 +325,68 @@ export default function App() {
       })();
     }
   }, []);
+
+  useEffect(() => {
+    window.api.youtubeStatus().then(channel => {
+      setYoutubeChannel(channel);
+      if (channel) Promise.all([window.api.youtubePlaylists(), window.api.youtubeVideos()]).then(([playlists, videos]) => {
+        setYoutubePlaylists(playlists.items); setYoutubePlaylistPage(playlists.nextPageToken || '');
+        setYoutubeVideos(videos.items); setYoutubeVideoPage(videos.nextPageToken || '');
+      }).catch(error => setYoutubeError(String(error)));
+    }).catch(error => setYoutubeError(String(error)));
+    return window.api.onYouTubeUploadProgress(setYoutubeUploadProgress);
+  }, []);
+
+  const handleYouTubeConnect = async () => {
+    setYoutubeBusy(true); setYoutubeError('');
+    try {
+      localStorage.setItem('youtube_client_id', youtubeClientId.trim());
+      const channel = await window.api.youtubeConnect(youtubeClientId.trim());
+      setYoutubeChannel(channel);
+      const [playlists, videos] = await Promise.all([window.api.youtubePlaylists(), window.api.youtubeVideos()]);
+      setYoutubePlaylists(playlists.items); setYoutubePlaylistPage(playlists.nextPageToken || '');
+      setYoutubeVideos(videos.items); setYoutubeVideoPage(videos.nextPageToken || '');
+    } catch (error) { setYoutubeError(String(error)); }
+    finally { setYoutubeBusy(false); }
+  };
+
+  const handleYouTubeDisconnect = async () => {
+    if (!confirm('Disconnect this YouTube channel from AlbumForge on this computer?')) return;
+    setYoutubeBusy(true);
+    try { await window.api.youtubeDisconnect(); setYoutubeChannel(null); setYoutubePlaylists([]); setYoutubeVideos([]); setYoutubeSelectedPlaylist(null); setYoutubePlaylistVideos([]); setYoutubeError(''); }
+    catch (error) { setYoutubeError(String(error)); }
+    finally { setYoutubeBusy(false); }
+  };
+
+  const handleYouTubeSelectVideo = async () => {
+    try { const video = await window.api.youtubeSelectVideo(); if (video) { setYoutubeVideo(video); setYoutubeUploadUrl(''); } }
+    catch (error) { setYoutubeError(String(error)); }
+  };
+
+  const handleYouTubePlaylist = async (playlist: YouTubePlaylist) => {
+    setYoutubeError(''); setYoutubeSelectedPlaylist(playlist); setYoutubePlaylistVideos([]); setYoutubePlaylistVideosPage('');
+    try {
+      const page = await window.api.youtubePlaylistVideos(playlist.id);
+      setYoutubePlaylistVideos(page.items); setYoutubePlaylistVideosPage(page.nextPageToken || '');
+    } catch (error) { setYoutubeError(String(error)); }
+  };
+
+  const handleYouTubeUpload = async () => {
+    if (!youtubeVideo || !youtubeChannel) return;
+    setYoutubeError(''); setYoutubeUploadUrl(''); setYoutubeUploadProgress(0); setYoutubeUploading(true);
+    try {
+      const url = await window.api.youtubeUpload(youtubeVideo, youtubePrivacy);
+      setYoutubeUploadUrl(url);
+      const page = await window.api.youtubeVideos();
+      setYoutubeVideos(page.items); setYoutubeVideoPage(page.nextPageToken || '');
+    } catch (error) { setYoutubeError(String(error)); }
+    finally { setYoutubeUploading(false); }
+  };
+
+  const handleUploadRenderedVideo = async (filePath: string) => {
+    try { setYoutubeVideo(await window.api.youtubePrepareVideo(filePath)); setYoutubeUploadUrl(''); setActiveTab('youtube'); }
+    catch (error) { setYoutubeError(String(error)); setActiveTab('youtube'); }
+  };
 
   // Sync settings modifications to localStorage
   const updateSettings = (updated: Partial<RenderSettings>) => {
@@ -376,8 +460,9 @@ export default function App() {
     }
   }, [logs, activeTab]);
 
-  const allAlbumsSelected = albums.length > 0 && albums.every(album => selectedAlbumIds.has(album.id));
-  const someAlbumsSelected = albums.some(album => selectedAlbumIds.has(album.id));
+  const scannedAlbums = albums.filter(album => !album.id.startsWith('mix-'));
+  const allAlbumsSelected = scannedAlbums.length > 0 && scannedAlbums.every(album => selectedAlbumIds.has(album.id));
+  const someAlbumsSelected = scannedAlbums.some(album => selectedAlbumIds.has(album.id));
 
   useEffect(() => {
     if (selectAllAlbumsRef.current) {
@@ -398,7 +483,24 @@ export default function App() {
   };
 
   const toggleSelectAllAlbums = () => {
-    setSelectedAlbumIds(allAlbumsSelected ? new Set() : new Set(albums.map(album => album.id)));
+    setSelectedAlbumIds(allAlbumsSelected ? new Set() : new Set(scannedAlbums.map(album => album.id)));
+  };
+
+  const toggleMixTrack = (filePath: string) => {
+    setMixTrackPaths(previous => previous.includes(filePath)
+      ? previous.filter(path => path !== filePath)
+      : [...previous, filePath]);
+  };
+
+  const moveMixTrack = (index: number, direction: -1 | 1) => {
+    setMixTrackPaths(previous => {
+      const target = index + direction;
+      if (target < 0 || target >= previous.length) return previous;
+      const next = [...previous];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setMixPreviewIndex(index + direction);
   };
 
   // Actions
@@ -432,7 +534,7 @@ export default function App() {
     
     try {
       const results = await window.api.scanAlbums(rootFolder, settings.scanRecursive);
-      setAlbums(results);
+      setAlbums(previous => [...results, ...previous.filter(album => album.id.startsWith('mix-'))]);
       setSelectedAlbumIds(new Set());
       if (results.length > 0) {
         setSelectedAlbumId(results[0].id);
@@ -468,7 +570,7 @@ export default function App() {
 
   // Selected albums compile trigger
   const handleRenderSelected = async () => {
-    const selectedAlbums = albums.filter(album => selectedAlbumIds.has(album.id));
+    const selectedAlbums = scannedAlbums.filter(album => selectedAlbumIds.has(album.id));
     if (selectedAlbums.length === 0) return;
 
     if (!settings.outputFolder) {
@@ -495,7 +597,7 @@ export default function App() {
 
   // Batch Queue Compile trigger
   const handleRenderAll = async () => {
-    if (albums.length === 0) return;
+    if (scannedAlbums.length === 0) return;
     
     if (!settings.outputFolder) {
       alert('Please select an output folder in settings first!');
@@ -510,7 +612,7 @@ export default function App() {
       return;
     }
 
-    const uncompleted = albums.filter(a => a.status !== 'completed');
+    const uncompleted = scannedAlbums.filter(a => a.status !== 'completed');
     if (uncompleted.length === 0) {
       if (!confirm('All albums are already rendered. Re-render all?')) {
         return;
@@ -521,11 +623,28 @@ export default function App() {
       setActiveTab('queue');
       setIsQueueRunning(true);
       
-      const targetList = uncompleted.length > 0 ? uncompleted : albums;
+      const targetList = uncompleted.length > 0 ? uncompleted : scannedAlbums;
       await window.api.renderAll(targetList, settings);
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleRenderMix = async () => {
+    if (!mixPreviewAlbum || !mixTitle.trim()) return;
+    if (!settings.outputFolder) { setActiveTab('settings'); alert('Choose an output folder first.'); return; }
+    if (!await runOutputPreflight()) { alert('The output folder is not writable.'); return; }
+    const mix: Album = {
+      ...mixPreviewAlbum,
+      id: `mix-${Date.now()}`,
+      albumName: mixTitle.trim(),
+      status: 'idle',
+    };
+    setSelectedAlbumId(mix.id);
+    setActiveTab('queue');
+    setIsQueueRunning(true);
+    try { await window.api.renderAll([mix], settings); }
+    catch (error) { setIsQueueRunning(false); alert(`Could not queue mix: ${String(error)}`); }
   };
 
   // Queue actions
@@ -627,9 +746,23 @@ export default function App() {
   };
 
   // Active elements
-  const selectedAlbum = albums.find(a => a.id === selectedAlbumId) || null;
+  const libraryMixTracks = scannedAlbums.flatMap(album =>
+    album.tracks.map(track => ({ track, album })));
+  const orderedMixTracks = mixTrackPaths.map(filePath =>
+    libraryMixTracks.find(item => item.track.filePath === filePath)).filter((item): item is { track: Track; album: Album } => Boolean(item));
+  const mixPreviewAlbum: Album | null = orderedMixTracks.length ? {
+    id: 'mix-preview', folderPath: 'Mixed songs', albumName: mixTitle.trim() || 'Untitled Mix', year: 'Mix',
+    tracksCount: orderedMixTracks.length,
+    coverPath: orderedMixTracks[0].album.coverPath,
+    coverFound: Boolean(orderedMixTracks[0].album.coverPath),
+    totalDuration: orderedMixTracks.reduce((sum, item) => sum + item.track.duration, 0),
+    tracks: orderedMixTracks.map((item, index) => ({ ...item.track, trackNumber: index + 1, coverPath: item.album.coverPath })),
+    status: 'idle', progress: 0,
+  } : null;
+  const selectedAlbum = activeTab === 'mix' ? mixPreviewAlbum : albums.find(a => a.id === selectedAlbumId) || null;
+  const previewActiveIndex = activeTab === 'mix' ? Math.min(mixPreviewIndex, (selectedAlbum?.tracks.length || 1) - 1) : 0;
   const previewTrackLayout = selectedAlbum
-    ? getTrackLayout(selectedAlbum.tracks.length, 0, settings.resolution)
+    ? getTrackLayout(selectedAlbum.tracks.length, previewActiveIndex, settings.resolution)
     : null;
   const selectedVideoCodec = window.api.platform === 'darwin' &&
     !['auto', 'h264_videotoolbox', 'libx264'].includes(settings.videoCodec)
@@ -668,11 +801,17 @@ export default function App() {
         </div>
         
         <nav className="nav-menu">
-          <button 
+          <button
             className={`nav-item ${activeTab === 'library' ? 'active' : ''}`}
             onClick={() => setActiveTab('library')}
           >
             <span>📁</span> Library
+          </button>
+          <button
+            className={`nav-item ${activeTab === 'mix' ? 'active' : ''}`}
+            onClick={() => setActiveTab('mix')}
+          >
+            <span>🎶</span> Mix Builder
           </button>
           <button 
             className={`nav-item ${activeTab === 'queue' ? 'active' : ''}`}
@@ -681,6 +820,12 @@ export default function App() {
             <span>⚡</span> Queue {albums.filter(a => a.status === 'queued' || a.status === 'processing').length > 0 && <span className="queue-badge" style={{ background: 'var(--accent-primary)', fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '50%', color: 'white' }}>{albums.filter(a => a.status === 'queued' || a.status === 'processing').length}</span>}
           </button>
           <button 
+            className={`nav-item ${activeTab === 'youtube' ? 'active' : ''}`}
+            onClick={() => setActiveTab('youtube')}
+          >
+            <span>▶</span> YouTube
+          </button>
+          <button
             className={`nav-item ${activeTab === 'logs' ? 'active' : ''}`}
             onClick={() => setActiveTab('logs')}
           >
@@ -712,13 +857,13 @@ export default function App() {
 
         {/* Right-side action buttons */}
         <div className="top-bar-actions">
-          {activeTab === 'library' && albums.length > 0 && (
+          {activeTab === 'library' && scannedAlbums.length > 0 && (
             <>
               <button className="btn btn-secondary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleRenderSelected} disabled={selectedAlbumIds.size === 0 || isQueueRunning}>
                 Render Selected ({selectedAlbumIds.size})
               </button>
               <button className="btn btn-primary" style={{ padding: '7px 14px', fontSize: '12px' }} onClick={handleRenderAll} disabled={isQueueRunning}>
-                Render All ({albums.length})
+                Render All ({scannedAlbums.length})
               </button>
             </>
           )}
@@ -729,7 +874,7 @@ export default function App() {
             </button>
           )}
 
-          {!showPreviewPane && (
+          {!showPreviewPane && activeTab !== 'youtube' && (
             <button 
               className="btn btn-secondary" 
               onClick={() => togglePreviewPane(true)} 
@@ -756,8 +901,8 @@ export default function App() {
         {/* Multi-Pane workspace body */}
         <div
           ref={workspaceContentRef}
-          className={`workspace-content ${!showPreviewPane ? 'preview-collapsed' : ''}`}
-          style={showPreviewPane ? { gridTemplateColumns: `minmax(0, 1fr) ${previewPaneWidth}px` } : undefined}
+          className={`workspace-content ${activeTab === 'youtube' ? 'youtube-full-width' : !showPreviewPane ? 'preview-collapsed' : ''}`}
+          style={showPreviewPane && activeTab !== 'youtube' ? { gridTemplateColumns: `minmax(0, 1fr) ${previewPaneWidth}px` } : undefined}
         >
           
           {/* Left panel context dependent */}
@@ -861,7 +1006,7 @@ export default function App() {
                 )}
 
                 {/* Scanned Albums table */}
-                {albums.length > 0 ? (
+                {scannedAlbums.length > 0 ? (
                   <div className="table-container">
                     <table className="album-table library-table">
                       <thead>
@@ -887,7 +1032,7 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {albums.map((album) => (
+                        {scannedAlbums.map((album) => (
                           <tr 
                             key={album.id}
                             className={`${selectedAlbumId === album.id ? 'selected' : ''} ${selectedAlbumIds.has(album.id) ? 'render-selected' : ''}`.trim()}
@@ -952,6 +1097,46 @@ export default function App() {
               </>
             )}
 
+            {activeTab === 'mix' && (
+              <div className="mix-builder">
+                <div className="mix-builder-header">
+                  <div><h3>Mixed-song video</h3><p>Pick songs across albums, arrange their order, then render one video with each song’s own cover.</p></div>
+                  <button className="btn btn-primary" onClick={handleRenderMix} disabled={!orderedMixTracks.length || isQueueRunning}>Render mix ({orderedMixTracks.length})</button>
+                </div>
+                <div className="mix-builder-fields">
+                  <label className="input-group"><span className="input-label">Video title</span><input className="text-input" value={mixTitle} onChange={event => setMixTitle(event.target.value)} maxLength={100} /></label>
+                  <label className="input-group"><span className="input-label">Find songs</span><input className="text-input" placeholder="Search title, artist or album" value={mixSearch} onChange={event => setMixSearch(event.target.value)} /></label>
+                </div>
+                <div className="mix-builder-columns">
+                  <section className="mix-song-panel" aria-label="Available songs">
+                    <h4>Library songs</h4>
+                    {libraryMixTracks.length ? libraryMixTracks.filter(({ track, album }) =>
+                      `${track.title} ${track.artist} ${album.albumName}`.toLowerCase().includes(mixSearch.toLowerCase())).slice(0, 500).map(({ track, album }) => (
+                        <label className="mix-song-row" key={track.filePath}>
+                          <input type="checkbox" checked={mixTrackPaths.includes(track.filePath)} onChange={() => toggleMixTrack(track.filePath)} />
+                          {album.coverPath && <img src={`file:///${album.coverPath.replace(/\\/g, '/')}`} alt="" />}
+                          <span><strong>{track.title}</strong><small>{track.artist} · {album.albumName}</small></span>
+                        </label>
+                      )) : <p className="mix-empty">Scan your music library first, then return here to choose songs.</p>}
+                    {libraryMixTracks.length > 500 && <p className="mix-empty">Search to find songs beyond the first 500 results.</p>}
+                  </section>
+                  <section className="mix-song-panel" aria-label="Mix order">
+                    <h4>Playback order · {orderedMixTracks.length} songs</h4>
+                    {orderedMixTracks.length ? orderedMixTracks.map(({ track, album }, index) => (
+                      <div className={`mix-song-row ${previewActiveIndex === index ? 'is-previewing' : ''}`} key={track.filePath}>
+                        <button className="mix-preview-choice" onClick={() => setMixPreviewIndex(index)} title="Preview this song">{String(index + 1).padStart(2, '0')}</button>
+                        {album.coverPath && <img src={`file:///${album.coverPath.replace(/\\/g, '/')}`} alt="" />}
+                        <span><strong>{track.title}</strong><small>{album.albumName}</small></span>
+                        <button onClick={() => moveMixTrack(index, -1)} disabled={index === 0} aria-label={`Move ${track.title} up`}>↑</button>
+                        <button onClick={() => moveMixTrack(index, 1)} disabled={index === orderedMixTracks.length - 1} aria-label={`Move ${track.title} down`}>↓</button>
+                        <button onClick={() => toggleMixTrack(track.filePath)} aria-label={`Remove ${track.title}`}>×</button>
+                      </div>
+                    )) : <p className="mix-empty">Select songs on the left. Click a number to preview its cover and highlight.</p>}
+                  </section>
+                </div>
+              </div>
+            )}
+
             {/* Queue Tab */}
             {activeTab === 'queue' && (
               <div className="table-container" style={{ padding: '15px' }}>
@@ -990,6 +1175,7 @@ export default function App() {
                             {album.error && <div style={{ color: 'var(--accent-danger)', fontSize: '10px', marginTop: '4px' }}>{album.error}</div>}
                           </td>
                           <td className="queue-open-column">
+                            {album.status === 'completed' && album.outputVideoPath && <button type="button" className="queue-upload-video" onClick={() => handleUploadRenderedVideo(album.outputVideoPath!)} title="Prepare upload to YouTube">Upload</button>}
                             <button
                               type="button"
                               className="queue-open-video"
@@ -1014,6 +1200,57 @@ export default function App() {
                     <h3>No Active Renders</h3>
                     <p style={{ fontSize: '13px' }}>Select albums in the Library tab and trigger compilation to see progress lists.</p>
                   </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'youtube' && (
+              <div className="youtube-panel">
+                <div className="youtube-heading"><h3>YouTube Studio connection</h3><p>Browse your channel and upload rendered MP4s directly from AlbumForge.</p></div>
+                {youtubeError && <div className="youtube-error" role="alert">{youtubeError}</div>}
+                {!youtubeChannel ? (
+                  <section className="youtube-card">
+                    <h4>Connect your channel</h4>
+                    <p>Enable YouTube Data API v3 in a Google Cloud project, create an OAuth client of type <strong>Desktop app</strong>, and enter its client ID below. Google consent opens in your normal browser; uploads and channel browsing stay in AlbumForge. No credentials are put in Git.</p>
+                    <label className="input-group"><span className="input-label">Google Desktop OAuth client ID</span><input className="text-input" value={youtubeClientId} onChange={event => setYoutubeClientId(event.target.value)} placeholder="...apps.googleusercontent.com" /></label>
+                    <button className="btn btn-primary" onClick={handleYouTubeConnect} disabled={youtubeBusy || !youtubeClientId.trim()}>{youtubeBusy ? 'Waiting for Google…' : 'Connect YouTube'}</button>
+                    <small>New unverified API projects may have uploads restricted to Private until Google approves the project.</small>
+                  </section>
+                ) : (
+                  <>
+                    <section className="youtube-card youtube-account">
+                      {youtubeChannel.thumbnail && <img src={youtubeChannel.thumbnail} alt="" />}
+                      <span><strong>{youtubeChannel.title}</strong><small>Connected channel · {youtubeChannel.id}</small></span>
+                      <button className="btn btn-secondary" onClick={handleYouTubeDisconnect} disabled={youtubeBusy}>Disconnect</button>
+                    </section>
+                    <section className="youtube-card">
+                      <h4>Upload a video</h4>
+                      <button className="btn btn-secondary" onClick={handleYouTubeSelectVideo} disabled={youtubeUploading}>Choose local MP4</button>
+                      {youtubeVideo && <div className="youtube-upload-form">
+                        <small className="youtube-file-path">{youtubeVideo.path}</small>
+                        <label className="input-group"><span className="input-label">YouTube title</span><input className="text-input" value={youtubeVideo.title} maxLength={100} onChange={event => setYoutubeVideo({ ...youtubeVideo, title: event.target.value })} /></label>
+                        <label className="input-group"><span className="input-label">Description and song chapters</span><textarea className="text-input" rows={6} maxLength={5000} value={youtubeVideo.description} onChange={event => setYoutubeVideo({ ...youtubeVideo, description: event.target.value })} /></label>
+                        <label className="input-group"><span className="input-label">Visibility</span><select className="select-input" value={youtubePrivacy} onChange={event => setYoutubePrivacy(event.target.value as typeof youtubePrivacy)}><option value="private">Private</option><option value="unlisted">Unlisted</option><option value="public">Public</option></select></label>
+                        <small>Google may force uploads from an unverified API project to Private regardless of this selection. Check the final visibility in YouTube Studio.</small>
+                        <div className="youtube-upload-actions"><button className="btn btn-primary" onClick={handleYouTubeUpload} disabled={youtubeUploading || !youtubeVideo.title.trim()}>{youtubeUploading ? `Uploading ${youtubeUploadProgress}%` : 'Upload to YouTube'}</button>{youtubeUploading && <button className="btn btn-secondary" onClick={() => window.api.youtubeCancelUpload()}>Cancel upload</button>}</div>
+                        {youtubeUploading && <progress value={youtubeUploadProgress} max={100} />}
+                      </div>}
+                      {youtubeUploadUrl && <div className="youtube-success">Upload complete: {youtubeUploadUrl} <button className="btn btn-secondary" onClick={() => window.api.copyText(youtubeUploadUrl)}>Copy link</button></div>}
+                    </section>
+                    <div className="youtube-library-grid">
+                      <section className="youtube-card">
+                        <h4>Your playlists</h4>
+                        {youtubePlaylists.map(item => <button type="button" className={`youtube-list-row youtube-playlist-button ${youtubeSelectedPlaylist?.id === item.id ? 'active' : ''}`} key={item.id} onClick={() => handleYouTubePlaylist(item)}><strong>{item.title}</strong><small>{item.itemCount} videos</small></button>)}
+                        {youtubePlaylistPage && <button className="btn btn-secondary" onClick={async () => { try { const page = await window.api.youtubePlaylists(youtubePlaylistPage); setYoutubePlaylists(previous => [...previous, ...page.items]); setYoutubePlaylistPage(page.nextPageToken || ''); } catch (error) { setYoutubeError(String(error)); } }}>Load more playlists</button>}
+                        {youtubeSelectedPlaylist && <div className="youtube-playlist-contents">
+                          <h4>{youtubeSelectedPlaylist.title}</h4>
+                          {youtubePlaylistVideos.map(item => <div className="youtube-list-row" key={item.id}>{item.thumbnail && <img src={item.thumbnail} alt="" />}<strong>{item.title}</strong></div>)}
+                          {youtubePlaylistVideosPage && <button className="btn btn-secondary" onClick={async () => { try { const page = await window.api.youtubePlaylistVideos(youtubeSelectedPlaylist.id, youtubePlaylistVideosPage); setYoutubePlaylistVideos(previous => [...previous, ...page.items]); setYoutubePlaylistVideosPage(page.nextPageToken || ''); } catch (error) { setYoutubeError(String(error)); } }}>Load more playlist videos</button>}
+                        </div>}
+                      </section>
+                      <section className="youtube-card"><h4>Your uploaded videos</h4>{youtubeVideos.map(item => <div className="youtube-list-row" key={item.id}>{item.thumbnail && <img src={item.thumbnail} alt="" />}<strong>{item.title}</strong></div>)}{youtubeVideoPage && <button className="btn btn-secondary" onClick={async () => { try { const page = await window.api.youtubeVideos(youtubeVideoPage); setYoutubeVideos(previous => [...previous, ...page.items]); setYoutubeVideoPage(page.nextPageToken || ''); } catch (error) { setYoutubeError(String(error)); } }}>Load more videos</button>}</section>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -1189,7 +1426,7 @@ export default function App() {
                       <option value="alac">Lossless ALAC — preserve source audio (larger MP4)</option>
                       <option value="aac">AAC-LC 384 kb/s — YouTube-friendly (lossy)</option>
                     </select>
-                    <span className="input-hint">Audio quality is independent of the video export-quality setting. Lossless requires matching sample rate and channel count across an album.</span>
+                    <span className="input-hint">Audio quality is independent of the video export-quality setting. Mixed-format songs are normalized to the highest source sample rate and channel count before ALAC encoding.</span>
                   </div>
                 </div>
 
@@ -1218,19 +1455,24 @@ export default function App() {
                 </div>
 
                 <div className="settings-section-title">Album artwork presentation</div>
-                <label className={`jewel-case-setting ${settings.useJewelCase ? 'active' : ''}`}>
-                  <input
-                    type="checkbox"
-                    className="checkbox-input"
-                    checked={settings.useJewelCase}
-                    onChange={(e) => updateSettings({ useJewelCase: e.target.checked })}
-                  />
-                  <img src={jewelCaseOverlay} alt="" />
-                  <span className="jewel-case-setting-copy">
-                    <strong>Add CD jewel case</strong>
-                    <small>Frame album artwork with the supplied transparent jewel-case overlay in previews and final videos.</small>
-                  </span>
-                </label>
+                <div className="artwork-theme-choices" role="radiogroup" aria-label="Artwork theme">
+                  {([
+                    ['plain', 'Classic cover', 'A clean, full-size album cover'],
+                    ['jewel', 'CD jewel case', 'The transparent CD case around each cover'],
+                    ['coverflow', 'Cover Flow', 'Current cover with previous and next covers'],
+                  ] as const).map(([value, label, description]) => (
+                    <label key={value} className={`artwork-theme-choice ${getArtworkTheme(settings) === value ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="artwork-theme"
+                        value={value}
+                        checked={getArtworkTheme(settings) === value}
+                        onChange={() => updateSettings({ artworkTheme: value, useJewelCase: value === 'jewel' })}
+                      />
+                      <span><strong>{label}</strong><small>{description}</small></span>
+                    </label>
+                  ))}
+                </div>
 
                 <div className="settings-section-title">Predefined video color palettes</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
@@ -1380,7 +1622,7 @@ export default function App() {
           </div>
 
           {/* Right sidebar: Live Visual Layout Preview */}
-          {showPreviewPane ? (
+          {showPreviewPane && activeTab !== 'youtube' ? (
             <aside className="preview-pane-shell">
               <div
                 className="preview-resize-handle"
@@ -1449,20 +1691,31 @@ export default function App() {
                           <div className="visual-preview-canvas" style={{ backgroundColor: settings.backgroundColor }}>
                             <div className="canvas-bg-glow" />
 
-                            <div className="preview-left">
-                              <div className={`preview-cover-art-container ${settings.useJewelCase ? 'jewel-case-enabled' : ''}`}>
+                            <div className={`preview-left ${getArtworkTheme(settings) === 'coverflow' ? 'preview-coverflow' : ''}`}>
+                              {getArtworkTheme(settings) === 'coverflow' ? (
+                                <div className="preview-coverflow-stage">
+                                  {([-1, 0, 1] as const).map(offset => {
+                                    const index = previewActiveIndex + offset;
+                                    if (index < 0 || index >= selectedAlbum.tracks.length) return null;
+                                    const coverPath = selectedAlbum.tracks[index].coverPath || selectedAlbum.coverPath;
+                                    return coverPath ? <img key={index} className={`preview-flow-card preview-flow-${offset === -1 ? 'previous' : offset === 1 ? 'next' : 'current'}`} src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" />
+                                      : <div key={index} className={`preview-flow-card preview-flow-fallback preview-flow-${offset === -1 ? 'previous' : offset === 1 ? 'next' : 'current'}`}>AF</div>;
+                                  })}
+                                  <div className="preview-coverflow-caption"><small>NOW PLAYING · {previewActiveIndex + 1} / {selectedAlbum.tracks.length}</small><strong>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong></div>
+                                </div>
+                              ) : <div className={`preview-cover-art-container ${getArtworkTheme(settings) === 'jewel' ? 'jewel-case-enabled' : ''}`}>
                                 {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
-                                  <img className="preview-cover-art" src={`file:///${selectedAlbum.coverPath.replace(/\\/g, '/')}`} />
+                                  <img className="preview-cover-art" src={`file:///${(selectedAlbum.tracks[previewActiveIndex]?.coverPath || selectedAlbum.coverPath).replace(/\\/g, '/')}`} />
                                 ) : (
                                   <div className="preview-cover-placeholder">
                                     <span>AF</span>
                                     {selectedAlbum.albumName.slice(0, 20)}
                                   </div>
                                 )}
-                                {settings.useJewelCase && (
+                                {getArtworkTheme(settings) === 'jewel' && (
                                   <img className="preview-jewel-case-overlay" src={jewelCaseOverlay} alt="" />
                                 )}
-                              </div>
+                              </div>}
                             </div>
 
                             <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
@@ -1484,8 +1737,8 @@ export default function App() {
                                 {selectedAlbum.tracks.slice(previewTrackLayout!.start, previewTrackLayout!.end).map((track, i) => (
                                   <div
                                     key={track.id}
-                                    className={`preview-track-item ${i === 0 ? 'preview-track-active' : ''}`}
-                                    style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}
+                                    className={`preview-track-item ${i + previewTrackLayout!.start === previewActiveIndex ? 'preview-track-active' : ''}`}
+                                    style={{ color: i + previewTrackLayout!.start === previewActiveIndex ? settings.activeColor : settings.inactiveColor }}
                                   >
                                     <div className="preview-track-num-col">
                                       {String(track.trackNumber || i + previewTrackLayout!.start + 1).padStart(2, '0')}
@@ -1497,7 +1750,7 @@ export default function App() {
                                           {track.artist}
                                         </div>}
                                     </div>
-                                    <div className="preview-track-duration" style={{ color: i === 0 ? settings.activeColor : settings.inactiveColor }}>
+                                    <div className="preview-track-duration" style={{ color: i + previewTrackLayout!.start === previewActiveIndex ? settings.activeColor : settings.inactiveColor }}>
                                       {formatTrackTime(track.duration)}
                                     </div>
                                   </div>

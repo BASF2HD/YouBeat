@@ -8,19 +8,21 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 
 - **Automatic Folder Scanner**: Detects folders containing supported formats (`.mp3`, `.flac`, `.wav`, `.m4a`, `.aac`) recursively or strictly at the root level.
 - **Embedded Tag & Filename Parsing**: Automatically extracts track number, title, artist/singer, album, release year, and duration using `music-metadata`. If metadata tags are absent, the engine employs a regex parser to clean filename indicators (like leading tracks `01 -`, track lists `Song - Artist`, etc.) to generate clean fallbacks.
-- **Realistic CD Jewel Case Render**: Renders a visually striking glassmorphic jewel case displaying the booklet and a peaking vinyl CD sticking out of the sleeve on the left side of the screen.
+- **Artwork themes**: Choose a clean cover, CD jewel case, or Cover Flow presentation in Settings. Each theme renders to a distinct output filename, so switching themes creates a new video.
+- **Mix Builder**: Select and reorder songs across scanned albums. Their individual album covers appear in the Cover Flow video and live preview.
 - **Smart Adaptive Tracklist Viewport**: 
   - Generates a highlighted vertical listing of song names and singers (in italic) on the right side.
   - Dynamically calculates font sizing based on song count to prevent screen overflow.
   - If an album contains more than 12 tracks, the layout automatically shifts to a moving viewport that scrolls to center around the active playing track.
 - **Efficient FFmpeg Assembly**:
   1. Encodes each track's still slide at about one frame per second to H.264, using Apple VideoToolbox on macOS when available. Inter-frame compression keeps long album files compact.
-  2. Encodes the matching audio to AAC 44,100 Hz stereo without duplicating 30 identical video frames each second.
+  2. Encodes the matching audio to ALAC by default, or AAC when selected, without duplicating 30 identical video frames each second. Mixed source formats use a common sample rate and channel layout before encoding.
   3. Joins the finished track segments without another video encode.
 - **YouTube Metadata Exporters**:
   - Automatically exports a `Description.txt` containing cumulative timings (`00:00 Track 1 - Singer`, `04:32 Track 2 - Singer`).
   - Automatically exports the first slide layout as a high-quality `Thumbnail.jpg`.
 - **Local Metadata Edit Overrides**: Enables editing detected titles, years, track numbers, and singers in the UI, saving edits securely inside a local AppData `metadata_cache.json` rather than editing the user's source media.
+- **YouTube connection**: Connect your channel, browse uploaded videos and playlists, and upload rendered MP4s from the app. Upload titles and descriptions are editable, and render-generated chapter timestamps are prefilled.
 
 ---
 
@@ -67,6 +69,15 @@ Install Node.js with npm. FFmpeg does not need a separate installation.
 
 The first start installs dependencies, including the FFmpeg binary for that computer's operating system and CPU, then builds and opens the app. On an existing checkout, run `git pull` followed by `npm start`. The project keeps dependency versions in `package-lock.json`; the FFmpeg executable is downloaded during installation because each operating system and CPU needs its own binary. An installed desktop package already contains FFmpeg and does not require Node.js.
 
+### Connect YouTube
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create or select a project and enable **YouTube Data API v3**. Configure the OAuth consent screen for your Google account.
+2. Create an OAuth client of type **Desktop app**. Copy its client ID (ending in `.apps.googleusercontent.com`) into AlbumForge's **YouTube** tab, then click **Connect YouTube**.
+3. Approve access in your normal browser. AlbumForge stores the refresh token encrypted in this computer's OS-protected app data; it is never committed to Git. Each computer needs to be connected once.
+4. Choose a rendered MP4 from the YouTube tab or click **Upload** beside a completed queue item. Review title, chapters/description, and visibility before upload.
+
+Google requires browser-based consent for desktop apps. You cannot bundle a personal YouTube password or refresh token in a shared Git repository. Projects that have not completed Google's YouTube API audit may have uploads restricted to Private, even if another visibility is requested. Check the uploaded video's visibility in YouTube Studio.
+
 ---
 
 ## Running the Application
@@ -93,5 +104,5 @@ npm run pack
 ## Technical Performance Optimization Notes
 
 - **Offscreen Capture Repaint Timing**: The slide generator waits for images to load before capturing the hidden BrowserWindow, then allows a short paint delay.
-- **FFmpeg Concat Stream Alignment**: The intermediate segment encoder forces standard audio metrics (`-ar 44100 -ac 2 -b:a 192k`). This avoids FFmpeg throwing channel mismatches or sample-rate differences during concatenation, allowing the copy demuxer to run instantly.
+- **FFmpeg Concat Stream Alignment**: The intermediate segments share a sample rate and channel layout, chosen from the highest-rate source in the selection. This lets the final MP4 concatenate without re-encoding its finished streams. When sources differ, the lower-rate/channel audio is converted to that common format; ALAC remains lossless after this conversion, but cannot restore information absent from the originals.
 - **Garbage Cleanup**: All intermediate PNG slides and segment `.mp4` chunks generated during render processes are completely deleted upon compile completion or cancellation, keeping disk footprint clean.

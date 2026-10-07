@@ -51,5 +51,20 @@ contextBridge.exposeInMainWorld('api', {
 
   clearScanCache: () => ipcRenderer.invoke('clear-scan-cache'),
   testOutputWritable: (outDir: string) => ipcRenderer.invoke('test-output-writable', outDir),
-  getDefaultOutputFolder: () => ipcRenderer.invoke('get-default-output-folder')
+  getDefaultOutputFolder: () => ipcRenderer.invoke('get-default-output-folder'),
+  youtubeStatus: () => ipcRenderer.invoke('youtube-status'),
+  youtubeConnect: (clientId: string) => ipcRenderer.invoke('youtube-connect', clientId),
+  youtubeDisconnect: () => ipcRenderer.invoke('youtube-disconnect'),
+  youtubePlaylists: (pageToken?: string) => ipcRenderer.invoke('youtube-playlists', pageToken),
+  youtubeVideos: (pageToken?: string) => ipcRenderer.invoke('youtube-videos', pageToken),
+  youtubePlaylistVideos: (playlistId: string, pageToken?: string) => ipcRenderer.invoke('youtube-playlist-videos', playlistId, pageToken),
+  youtubeSelectVideo: () => ipcRenderer.invoke('youtube-select-video'),
+  youtubePrepareVideo: (filePath: string) => ipcRenderer.invoke('youtube-prepare-video', filePath),
+  youtubeUpload: (video: { path: string; title: string; description: string }, privacy: string) => ipcRenderer.invoke('youtube-upload', video, privacy),
+  youtubeCancelUpload: () => ipcRenderer.invoke('youtube-cancel-upload'),
+  onYouTubeUploadProgress: (callback: (percent: number) => void) => {
+    const listener = (_event: any, percent: number) => callback(percent);
+    ipcRenderer.on('youtube-upload-progress', listener);
+    return () => ipcRenderer.off('youtube-upload-progress', listener);
+  }
 });

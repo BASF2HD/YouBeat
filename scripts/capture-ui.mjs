@@ -4,6 +4,11 @@ const outputPath = process.argv[2] ?? '.design-qa/albumforge-studio.png';
 const enableJewelCase = process.argv.includes('--enable-jewel-case');
 const openSettings = process.argv.includes('--settings');
 const openLogs = process.argv.includes('--logs');
+const openMix = process.argv.includes('--mix');
+const openYouTube = process.argv.includes('--youtube');
+const coverflowTheme = process.argv.includes('--coverflow-theme');
+const mixSelectCountArg = process.argv.find(argument => argument.startsWith('--mix-select-count='));
+const mixSelectCount = mixSelectCountArg ? Number(mixSelectCountArg.split('=')[1]) : 0;
 const verifyFfmpeg = process.argv.includes('--verify-ffmpeg');
 const selectCountArg = process.argv.find(argument => argument.startsWith('--select-count='));
 const selectCount = selectCountArg ? Number(selectCountArg.split('=')[1]) : 0;
@@ -82,6 +87,27 @@ if (openSettings) {
   await send('Runtime.evaluate', {
     expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Settings'))?.click()`,
   });
+  await new Promise(resolve => setTimeout(resolve, 150));
+}
+
+if (coverflowTheme) {
+  await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Settings'))?.click()` });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  await send('Runtime.evaluate', { expression: `document.querySelector('input[name="artwork-theme"][value="coverflow"]')?.click()` });
+  await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+if (openMix || mixSelectCount > 0) {
+  await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('Mix Builder'))?.click()` });
+  await new Promise(resolve => setTimeout(resolve, 100));
+  if (mixSelectCount > 0) {
+    await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('.mix-song-panel input[type="checkbox"]')).slice(0, ${mixSelectCount}).forEach(input => { if (!input.checked) input.click(); })` });
+    await new Promise(resolve => setTimeout(resolve, 150));
+  }
+}
+
+if (openYouTube) {
+  await send('Runtime.evaluate', { expression: `Array.from(document.querySelectorAll('button')).find(button => button.textContent?.includes('YouTube'))?.click()` });
   await new Promise(resolve => setTimeout(resolve, 150));
 }
 

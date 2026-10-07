@@ -2,11 +2,12 @@ import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { Album, RenderSettings } from '../shared/types';
+import { Album, RenderSettings, YouTubeLocalVideo } from '../shared/types';
 import { scanForAlbums, ScanProgress } from './scanner';
 import { parseAlbumFolder } from './metadata';
 import { queueManager } from './queueManager';
 import { testFfmpegPath, getAvailableHwEncoders } from './ffmpegService';
+import { hasYouTubeCredentials, connectYouTube, disconnectYouTube, getYouTubeChannel, listYouTubePlaylists, listYouTubeVideos, listYouTubePlaylistVideos, uploadYouTubeVideo, cancelYouTubeUpload } from './youtubeService';
 
 // Suppress benign Electron dev-time security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
@@ -471,6 +472,30 @@ ipcMain.handle('render-album', async (_event, albumId: string, settings: RenderS
 ipcMain.handle('render-all', async (_event, albums: Album[], settings: RenderSettings) => {
   await queueManager.addToQueue(albums, settings);
 });
+
+async function prepareYouTubeVideo(filePath: string): Promise<YouTubeLocalVideo> {
+  const stat = await fs.promises.stat(filePath);
+  if (!stat.isFile() || path.extname(filePath).toLowerCase() !== '.mp4') throw new Error('Choose a rendered MP4 file.');
+  const title = path.basename(filePath, path.extname(filePath));
+  const sidecar = path.join(path.dirname(filePath), `${title} - Description.txt`);
+  const description = fs.existsSync(sidecar) ? (await fs.promises.readFile(sidecar, 'utf8')).slice(0, 5000) : '';
+  return { path: filePath, title, description };
+}
+
+ipcMain.handle('youtube-status', async () => hasYouTubeCredentials() ? getYouTubeChannel() : null);
+ipcMain.handle('youtube-connect', async (_event, clientId: string) => connectYouTube(clientId.trim()));
+ipcMain.handle('youtube-disconnect', async () => disconnectYouTube());
+ipcMain.handle('youtube-playlists', async (_event, pageToken = '') => listYouTubePlaylists(pageToken));
+ipcMain.handle('youtube-videos', async (_event, pageToken = '') => listYouTubeVideos(pageToken));
+ipcMain.handle('youtube-playlist-videos', async (_event, playlistId: string, pageToken = '') => listYouTubePlaylistVideos(playlistId, pageToken));
+ipcMain.handle('youtube-prepare-video', async (_event, filePath: string) => prepareYouTubeVideo(filePath));
+ipcMain.handle('youtube-select-video', async () => {
+  const selection = await dialog.showOpenDialog(mainWindow!, { properties: ['openFile'], filters: [{ name: 'MP4 videos', extensions: ['mp4'] }] });
+  return selection.canceled || !selection.filePaths[0] ? null : prepareYouTubeVideo(selection.filePaths[0]);
+});
+ipcMain.handle('youtube-upload', async (_event, video: YouTubeLocalVideo, privacy: 'private' | 'unlisted' | 'public') =>
+  uploadYouTubeVideo(video.path, video.title, video.description, privacy, percent => mainWindow?.webContents.send('youtube-upload-progress', percent)));
+ipcMain.handle('youtube-cancel-upload', () => cancelYouTubeUpload());
 
 ipcMain.handle('pause-queue', () => {
   queueManager.pause();
