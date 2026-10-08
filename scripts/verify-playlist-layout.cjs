@@ -9,9 +9,13 @@ const { getSlideHTML } = require('../dist/main/rendererService');
 const { getTrackLayout, getTrackRowGap } = require('../dist/shared/trackLayout');
 const { shuffleMixOrder } = require('../dist/shared/mixOrder');
 const { getCoverflowFontSizes } = require('../dist/shared/coverflow');
+const { getArtworkLayout, getCoverSizePercent } = require('../dist/shared/artworkLayout');
 
 app.on('window-all-closed', () => {});
 app.whenReady().then(async () => {
+  assert.equal(getCoverSizePercent({ artworkTheme: 'plain' }), 100);
+  assert.equal(getCoverSizePercent({ artworkTheme: 'jewel' }), 75);
+  for (const classicCoverSizePercent of [-1, 49, 101, NaN, null]) assert.equal(getCoverSizePercent({ artworkTheme: 'plain', classicCoverSizePercent }), 100);
   assert.equal(getTrackRowGap({}), 8);
   assert.equal(getTrackRowGap({ trackRowGap: 0 }), 0);
   assert.equal(getTrackRowGap({ trackRowGap: 40 }), 40);
@@ -32,12 +36,12 @@ app.whenReady().then(async () => {
     const [width, height] = resolution.split('x').map(Number);
     window.setContentSize(width, height);
     for (const theme of ['plain', 'jewel']) {
-      for (const fonts of [{}, { trackTitleFontSize: 24, trackArtistFontSize: 12 }, { trackTitleFontSize: 64, trackArtistFontSize: 36 }, { trackRowGap: 0 }, { trackRowGap: 40 }]) {
+      for (const fonts of [{}, { trackTitleFontSize: 24, trackArtistFontSize: 12 }, { trackTitleFontSize: 64, trackArtistFontSize: 36 }, { trackRowGap: 0 }, { trackRowGap: 40 }, { classicCoverSizePercent: 50, jewelCoverSizePercent: 50 }, { classicCoverSizePercent: 100, jewelCoverSizePercent: 100 }]) {
       for (const count of [1, 8, 12, 18, 24, 36, 40]) {
         const album = {
           albumName: 'Compact playlist — longer song titles', year: '2026', tracksCount: count,
           tracks: Array.from({ length: count }, (_, index) => ({ trackNumber: index + 1,
-            title: `Song ${index + 1} — A longer title with room to breathe`, artist: 'AlbumForge Studio', duration: 180 })),
+            title: `Song ${index + 1} — A longer title with room to breathe`, artist: 'YouBeat', duration: 180 })),
           totalDuration: count * 180,
         };
         const settings = { resolution, artworkTheme: theme, fontFamily: 'Arial', backgroundColor: '#000', activeColor: '#fff', inactiveColor: '#888', artistItalic: true, ...fonts };
@@ -61,6 +65,8 @@ app.whenReady().then(async () => {
           const rows = [...document.querySelectorAll('.track-item')];
           const list = rect('.tracklist');
           return { headerAbsent: !document.querySelector('.album-header'), gap: right.left - cover.right, coverRatio: cover.width / cover.height,
+            coverHeight: cover.height, coverWidth: cover.width,
+            coverFits: cover.top >= 0 && cover.bottom <= innerHeight && cover.left >= 0 && cover.right < right.left,
             rowHeight: rows[0].getBoundingClientRect().height, count: rows.length,
             rowGap: parseFloat(getComputedStyle(document.querySelector('.tracklist')).rowGap),
             gapsMatch: rows.slice(1).every((row, index) => Math.abs(row.getBoundingClientRect().top - rows[index].getBoundingClientRect().bottom - parseFloat(getComputedStyle(document.querySelector('.tracklist')).rowGap)) < 1),
@@ -79,6 +85,10 @@ app.whenReady().then(async () => {
         })()`);
         assert.equal(metrics.count, layout.rows);
         assert.ok(metrics.headerAbsent);
+        const artwork = getArtworkLayout(settings);
+        assert.ok(metrics.coverFits);
+        assert.ok(Math.abs(metrics.coverHeight - artwork.coverHeight) < 1);
+        assert.ok(Math.abs(metrics.coverWidth - artwork.coverWidth) < 1);
         assert.ok(metrics.gapsMatch);
         assert.ok(Math.abs(metrics.rowGap - layout.rowGap) < .01);
         assert.equal(Number(metrics.activeNumber), count);
@@ -99,7 +109,7 @@ app.whenReady().then(async () => {
         assert.ok(Math.abs(metrics.rowHeight - layout.rowHeight) < 1);
         assert.ok(Math.abs(metrics.gap - 20 * layout.scale) < 1);
         assert.ok(Math.abs(metrics.coverRatio - (theme === 'plain' ? 1 : 3295 / 3008)) < .01);
-        if (resolution === '1920x1080' && !fonts.trackTitleFontSize && fonts.trackRowGap == null && [8, 12, 36].includes(count)) {
+        if (resolution === '1920x1080' && !fonts.trackTitleFontSize && fonts.trackRowGap == null && fonts.classicCoverSizePercent == null && [8, 12, 36].includes(count)) {
           const image = await window.webContents.capturePage();
           fs.writeFileSync(path.join(outputDir, `${theme}-${count}.png`), image.toPNG());
         }

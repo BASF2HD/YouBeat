@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
 import { getTrackLayout, getTrackFontSizes, getTrackRowGap } from '../shared/trackLayout';
+import { getArtworkLayout, getCoverSizePercent } from '../shared/artworkLayout';
 import { shuffleMixOrder } from '../shared/mixOrder';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
-import appLogo from '../../resources/albumforge-icon.png';
+import appLogo from '../../resources/youbeat-icon.png';
 import jewelCaseOverlay from '../../resources/cd-jewel-case-overlay.png';
 
 const PREVIEW_PANE_MIN_WIDTH = 320;
@@ -115,6 +116,8 @@ export default function App() {
     trackTitleFontSize: 40,
     trackArtistFontSize: 30,
     trackRowGap: 8,
+    classicCoverSizePercent: 100,
+    jewelCoverSizePercent: 75,
     trackDefaultsVersion: 1,
     audioDefaultsVersion: 1,
     activeColor: '#ffffff',
@@ -333,7 +336,7 @@ export default function App() {
     }
 
     // If no output folder was previously persisted, pre-populate with a safe
-    // local default (your OS Videos / AlbumForge Studio folder) instead of
+    // local default (your OS Videos / YouBeat folder) instead of
     // letting it default to a (potentially blocked) network share sibling.
     if (!persistedHasOutput) {
       (async () => {
@@ -764,6 +767,7 @@ export default function App() {
   const previewFlowSideCount = getCoverflowSideCount(selectedAlbum?.tracks.length || 0);
   const coverflowFontSizes = getCoverflowFontSizes(settings);
   const trackFontSizes = getTrackFontSizes(settings);
+  const artworkLayout = getArtworkLayout(settings);
   const previewTrackLayout = selectedAlbum
     ? getTrackLayout(selectedAlbum.tracks.length, previewActiveIndex, settings.resolution, settings)
     : null;
@@ -818,8 +822,7 @@ export default function App() {
             <img src={appLogo} alt="" />
           </div>
           <div className="brand-wordmark">
-            <span className="brand-name">AlbumForge</span>
-            <span className="brand-edition">Studio</span>
+            <span className="brand-name">YouBeat</span>
           </div>
         </div>
         
@@ -1350,7 +1353,7 @@ export default function App() {
                     <button className="btn btn-secondary" onClick={handleVerifyFfmpeg}>Test Binary</button>
                     <button className="btn btn-secondary" onClick={handleDetectGpu}>Check Encoders</button>
                   </div>
-                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Leave as 'ffmpeg' to use the copy bundled with AlbumForge. Enter a full path only to override it.</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>Leave as 'ffmpeg' to use the copy bundled with YouBeat. Enter a full path only to override it.</span>
                 </div>
 
                 <div className="settings-section-title">Video encoding parameters</div>
@@ -1463,7 +1466,9 @@ export default function App() {
                   <label className="input-group"><span className="input-label">Song list title size <strong>{trackFontSizes.title} px</strong></span><input aria-label="Song list title size" type="range" min="24" max="64" step="2" value={trackFontSizes.title} onChange={event => updateSettings({ trackTitleFontSize: Number(event.target.value) })} /></label>
                   <label className="input-group"><span className="input-label">Artist name size <strong>{trackFontSizes.artist} px</strong></span><input aria-label="Artist name size" type="range" min="12" max="36" step="2" value={trackFontSizes.artist} onChange={event => updateSettings({ trackArtistFontSize: Number(event.target.value) })} /></label>
                   <label className="input-group"><span className="input-label">Song row gap <strong>{getTrackRowGap(settings)} px</strong></span><input aria-label="Song row gap" type="range" min="0" max="40" step="2" value={getTrackRowGap(settings)} onChange={event => updateSettings({ trackRowGap: Number(event.target.value) })} /></label>
+                  <label className="input-group"><span className="input-label">Cover size (frame height) <strong>{getCoverSizePercent(settings)}%</strong></span><input aria-label="Cover size" type="range" min="50" max="100" step="1" value={getCoverSizePercent(settings)} onChange={event => updateSettings(getArtworkTheme(settings) === 'jewel' ? { jewelCoverSizePercent: Number(event.target.value) } : { classicCoverSizePercent: Number(event.target.value) })} /></label>
                   <small>Sizes and gaps are based on 1080p and scale for 720p/preview. The gap separates songs, keeping each title and artist together. Larger gaps show fewer rows; long lists follow the active song without shrinking your chosen sizes.</small>
+                  <small>Cover size is saved separately for Classic and CD Jewel. 100% fills the available frame height without stretching the artwork; a larger cover moves the song list right and leaves less width for long titles.</small>
                 </div>}
 
                 <div className="settings-section-title">Predefined video color palettes</div>
@@ -1689,14 +1694,14 @@ export default function App() {
                                   const coverPath = selectedAlbum.tracks[index].coverPath || selectedAlbum.coverPath;
                                   const position = offset === 0 ? 'center' : `${offset < 0 ? 'left' : 'right'}-${Math.abs(offset)}`;
                                   return <div key={`${index}-${selectedAlbum.tracks[index].filePath}`} className={`preview-flow-item preview-flow-${position}`}>
-                                    {coverPath ? <><img className="preview-flow-cover" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /><img className="preview-flow-reflection" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /></> : <div className="preview-flow-fallback">AF</div>}
+                                    {coverPath ? <><img className="preview-flow-cover" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /><div className="preview-flow-reflection-plane"><img className="preview-flow-reflection" src={`file:///${coverPath.replace(/\\/g, '/')}`} alt="" /></div></> : <div className="preview-flow-fallback">AF</div>}
                                   </div>;
                                 })}
                                 <div className="preview-coverflow-caption"><strong style={{ fontSize: `${coverflowFontSizes.song / 19.2}cqw` }}>{selectedAlbum.tracks[previewActiveIndex]?.title}</strong><small style={{ fontSize: `${coverflowFontSizes.album / 19.2}cqw` }}>{selectedAlbum.tracks[previewActiveIndex]?.album || selectedAlbum.albumName} | {selectedAlbum.tracks[previewActiveIndex]?.year || selectedAlbum.year}</small></div>
                               </div>
                             ) : <>
-                            <div className="preview-left">
-                              <div className={`preview-cover-art-container ${getArtworkTheme(settings) === 'jewel' ? 'jewel-case-enabled' : ''}`}>
+                            <div className="preview-left" style={{ flexBasis: `${artworkLayout.coverWidth / artworkLayout.frameWidth * 100}cqw` }}>
+                              <div className={`preview-cover-art-container ${getArtworkTheme(settings) === 'jewel' ? 'jewel-case-enabled' : ''}`} style={{ height: `${artworkLayout.coverHeight / artworkLayout.frameWidth * 100}cqw` }}>
                                 {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
                                   <img className="preview-cover-art" src={`file:///${(selectedAlbum.tracks[previewActiveIndex]?.coverPath || selectedAlbum.coverPath).replace(/\\/g, '/')}`} />
                                 ) : (

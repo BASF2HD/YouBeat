@@ -37,7 +37,7 @@ const album = {
     filePath: path.join(outputDir, 'smoke.wav'),
     trackNumber: 1,
     title: 'Frame Decode Test',
-    artist: 'AlbumForge Studio',
+    artist: 'YouBeat',
     duration: 2.4,
   }],
   tracksCount: 1,
@@ -135,6 +135,10 @@ app.whenReady().then(async () => {
     const result = await renderAlbumVideo(album, { ...settings, skipExisting: false }, slides, outputDir, () => {}, log => {
       if (log.type === 'error') console.error(log.text);
     });
+    const expectedStem = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
+    for (const [file, suffix] of [[result.videoPath, '.mp4'], [result.descriptionPath, ' - Description.txt'], [result.thumbnailPath, ' - Thumbnail.jpg']]) {
+      if (path.basename(file) !== `${expectedStem}${suffix}`) throw new Error(`Export filename must contain only the album and year: ${file}`);
+    }
     if (!fs.existsSync(result.videoPath) || fs.statSync(result.videoPath).size === 0) {
       throw new Error('The video renderer did not produce an MP4.');
     }

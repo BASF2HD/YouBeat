@@ -1,9 +1,9 @@
 {
-  "name": "albumforge-studio",
+  "name": "youbeat",
   "version": "1.0.0",
-  "description": "AlbumForge Studio — batch album-video production for YouTube",
+  "description": "YouBeat — batch album-video production for YouTube",
   "main": "dist/main/index.js",
-  "author": "AlbumForge Studio",
+  "author": "YouBeat",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
@@ -34,9 +34,9 @@
     "vite": "^5.0.12"
   },
   "build": {
-    "appId": "com.albumforge.studio",
-    "productName": "AlbumForge Studio",
-    "icon": "resources/albumforge-icon.png",
+    "appId": "com.youbeat.app",
+    "productName": "YouBeat",
+    "icon": "resources/youbeat-icon.png",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "beforePack": "./scripts/validate-package.cjs",
     "directories": {

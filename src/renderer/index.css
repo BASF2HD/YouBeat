@@ -781,7 +781,9 @@ body.preview-resizing .workspace-content {
   aspect-ratio: 16/9;
   background-color: #000000;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: none;
+  outline: 1px solid rgba(255, 255, 255, 0.1);
+  outline-offset: -1px;
   display: flex;
   padding: 1.0417cqw 1.6667cqw;
   gap: 1.0417cqw;
@@ -824,7 +826,7 @@ body.preview-resizing .workspace-content {
 }
 
 .preview-left {
-  flex: 0 0 46%;
+  flex: 0 0 auto;
   height: 100%;
   display: flex;
   align-items: center;
@@ -835,11 +837,10 @@ body.preview-resizing .workspace-content {
 .preview-cover-art-container {
   position: relative;
   height: auto;
-  max-height: 100%;
   aspect-ratio: 1/1;
   width: 100%;
   max-width: 100%;
-  box-shadow: 0 6px 24px rgba(0,0,0,0.7);
+  box-shadow: none;
   border-radius: 0;
   overflow: hidden;
   background: #111113;
@@ -847,12 +848,15 @@ body.preview-resizing .workspace-content {
 
 .visual-preview-canvas.preview-flow-layout { display: block; padding: 0; background: #000 !important; }
 .preview-coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 93.75cqw; overflow: hidden; background: #000; }
-.preview-flow-item { position: absolute; width: 40.5cqw; aspect-ratio: 1; bottom: 24%; transform-style: preserve-3d; }
+.preview-flow-item { position: absolute; width: 40.5cqw; aspect-ratio: 1; bottom: 24%; transform-style: flat; }
 .app-container .preview-flow-item { transition: left .42s cubic-bezier(.22,.61,.36,1), bottom .42s cubic-bezier(.22,.61,.36,1), width .32s cubic-bezier(.22,.61,.36,1), transform .42s cubic-bezier(.22,.61,.36,1), opacity .28s ease !important; }
 @media (prefers-reduced-motion: reduce) { .app-container .preview-flow-item { transition: none !important; } }
 .preview-flow-cover, .preview-flow-reflection { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
 .preview-flow-cover { border: 1px solid rgba(255,255,255,.12); box-shadow: 0 3px 9px rgba(0,0,0,.8); }
-.preview-flow-reflection { position: absolute; left: 0; top: 100%; transform: scaleY(-1); transform-origin: center; opacity: .32; -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
+/* Match the export's opaque reflection floor: only the artwork fades, so
+   second/third sleeves cannot show through the nearer sleeve's reflection. */
+.preview-flow-reflection-plane { position: absolute; left: 0; top: 100%; width: 100%; height: 65%; overflow: hidden; background: #000; }
+.preview-flow-reflection { transform: scaleY(-1); transform-origin: center; opacity: .32; -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
 .preview-flow-center { left: 50%; z-index: 7; transform: translateX(-50%); }
 .preview-flow-left-1, .preview-flow-right-1, .preview-flow-left-2, .preview-flow-right-2, .preview-flow-left-3, .preview-flow-right-3, .preview-flow-left-4, .preview-flow-right-4 { bottom: 28%; width: 32.625cqw; }
 .preview-flow-left-1, .preview-flow-right-1 { z-index: 6; }
@@ -973,7 +977,7 @@ body.preview-resizing .workspace-content {
 .preview-cover-art {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 

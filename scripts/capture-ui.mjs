@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises';
 
-const outputPath = process.argv[2] ?? '.design-qa/albumforge-studio.png';
+const outputPath = process.argv[2] ?? '.design-qa/youbeat.png';
 const enableJewelCase = process.argv.includes('--enable-jewel-case');
 const openSettings = process.argv.includes('--settings');
 const openLogs = process.argv.includes('--logs');
@@ -10,10 +10,12 @@ const verifyMixControls = process.argv.includes('--verify-mix-controls');
 const verifyShuffle = process.argv.includes('--verify-shuffle');
 const verifySelectionCards = process.argv.includes('--verify-selection-cards');
 const verifyCoverflowMotion = process.argv.includes('--verify-coverflow-motion');
+const verifyCoverflowReflections = process.argv.includes('--verify-coverflow-reflections');
 const verifyCoverflowSettings = process.argv.includes('--verify-coverflow-settings');
 const verifyTrackSettings = process.argv.includes('--verify-track-settings');
 const verifyTrackAlignment = process.argv.includes('--verify-track-alignment');
 const verifyRowGap = process.argv.includes('--verify-row-gap');
+const verifyCoverSize = process.argv.includes('--verify-cover-size');
 const losslessAudio = process.argv.includes('--lossless-audio');
 const verifyCoverflowCaption = process.argv.includes('--verify-coverflow-caption');
 const scrollFontSettings = process.argv.includes('--scroll-font-settings');
@@ -30,10 +32,10 @@ const selectAlbumArg = process.argv.find(argument => argument.startsWith('--sele
 const selectAlbum = selectAlbumArg?.slice('--select-album='.length);
 const previewWidthArg = process.argv.find(argument => argument.startsWith('--preview-width='));
 const targets = await fetch('http://127.0.0.1:9222/json/list', { signal: AbortSignal.timeout(10000) }).then(response => response.json());
-const target = targets.find(item => item.title === 'AlbumForge Studio');
+const target = targets.find(item => item.title === 'YouBeat');
 
 if (!target) {
-  throw new Error('AlbumForge Studio renderer target was not found.');
+  throw new Error('YouBeat renderer target was not found.');
 }
 
 const socket = new WebSocket(target.webSocketDebuggerUrl);
@@ -270,6 +272,43 @@ if (verifyTrackSettings) {
   console.log(`Track typography UI checks passed: ${JSON.stringify(checks)}`);
 }
 
+if (verifyCoverSize) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      const wait = () => new Promise(resolve => setTimeout(resolve, 120));
+      [...document.querySelectorAll('button')].find(button => button.textContent.includes('Settings'))?.click(); await wait();
+      const input = document.querySelector('input[aria-label="Cover size"]');
+      if (!input) return { error: 'Cover size slider missing' };
+      const original = input.value;
+      const theme = document.querySelector('input[name="artwork-theme"]:checked').value;
+      const key = theme === 'jewel' ? 'jewelCoverSizePercent' : 'classicCoverSizePercent';
+      const set = value => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      const measure = () => {
+        const cover = document.querySelector('.preview-cover-art-container').getBoundingClientRect();
+        const frame = document.querySelector('.visual-preview-canvas').getBoundingClientRect();
+        const right = document.querySelector('.preview-right').getBoundingClientRect();
+        return { height: cover.height, width: cover.width, right: right.left,
+          inside: cover.top >= frame.top - 1 && cover.bottom <= frame.bottom + 1 && cover.right < right.left,
+          proportion: cover.width / cover.height,
+          title: parseFloat(getComputedStyle(document.querySelector('.preview-track-title')).fontSize),
+          usableHeight: frame.height - frame.width * 40 / 1920 };
+      };
+      set('50'); await wait(); const small = measure();
+      set('100'); await wait(); const large = measure();
+      const persisted = JSON.parse(localStorage.getItem('render_settings'))[key] === 100;
+      set(original); await wait();
+      return { theme, original, small, large, persisted, restored: JSON.parse(localStorage.getItem('render_settings'))[key] === Number(original) };
+    })()`, awaitPromise: true, returnByValue: true,
+  });
+  const check = result.result.value;
+  const ratio = check.theme === 'jewel' ? 3295 / 3008 : 1;
+  if (check.error || !check.persisted || !check.restored || !check.small.inside || !check.large.inside || Math.abs(check.large.height - check.small.height * 2) > 1 || Math.abs(check.large.height - check.large.usableHeight) > 1 || check.large.right <= check.small.right || Math.abs(check.large.proportion - ratio) > .01 || Math.abs(check.large.title - check.small.title) > .01) throw new Error(`Cover size UI check failed: ${JSON.stringify(check)}`);
+  console.log(`Cover size controls passed: ${JSON.stringify(check)}`);
+}
+
 if (verifyRowGap) {
   const result = await send('Runtime.evaluate', {
     expression: `(async () => {
@@ -405,6 +444,24 @@ if (verifySelectionCards) {
   const checks = result.result.value;
   if (checks.length !== 2 || checks.some(check => check.cards.length !== 3 || check.cards.some(card => card.width !== '1px' || card.style !== 'solid' || !['rgb(75, 80, 96)', 'rgb(166, 175, 189)'].includes(card.border)))) throw new Error(`Selection borders check failed: ${JSON.stringify(checks)}`);
   console.log(`Selection borders checks passed: ${JSON.stringify(checks)}`);
+}
+
+if (verifyCoverflowReflections) {
+  const result = await send('Runtime.evaluate', {
+    expression: `Array.from(document.querySelectorAll('.preview-flow-item')).map(item => {
+      const plane = item.querySelector('.preview-flow-reflection-plane');
+      const image = plane?.querySelector('.preview-flow-reflection');
+      return { flat: getComputedStyle(item).transformStyle === 'flat',
+        opaque: plane && getComputedStyle(plane).backgroundColor === 'rgb(0, 0, 0)' && getComputedStyle(plane).opacity === '1',
+        clipped: plane && getComputedStyle(plane).overflow === 'hidden',
+        fadedImage: image && Number(getComputedStyle(image).opacity) === .32 && getComputedStyle(image).webkitMaskImage !== 'none' };
+    })`, returnByValue: true,
+  });
+  const planes = result.result.value;
+  if (!planes?.length || planes.some(plane => !plane.flat || !plane.opaque || !plane.clipped || !plane.fadedImage)) {
+    throw new Error(`Live reflection occlusion failed: ${JSON.stringify(planes)}`);
+  }
+  console.log(`Live reflection occlusion passed for ${planes.length} sleeves`);
 }
 
 if (verifyCoverflowMotion) {

@@ -4,17 +4,17 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const ffmpeg = process.argv.find(arg => arg.startsWith('--ffmpeg='))?.slice(9);
 const existingOutput = process.argv.find(arg => arg.startsWith('--output-folder='))?.slice(16);
 if (!ffmpeg) throw new Error('Pass --ffmpeg=<packaged FFmpeg binary path>');
-const root = await mkdtemp(join(tmpdir(), 'albumforge-packaged-render-'));
+const root = await mkdtemp(join(tmpdir(), 'youbeat-packaged-render-'));
 const input = join(root, '01 - Synthetic.wav');
 assert.equal(spawnSync(ffmpeg, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=duration=2.4', '-ar', '96000', '-ac', '2', input]).status, 0);
 const targets = await fetch('http://127.0.0.1:9222/json/list').then(response => response.json());
-const target = targets.find(item => item.title === 'AlbumForge Studio');
+const target = targets.find(item => item.title === 'YouBeat');
 assert.ok(target, 'Packaged app window must be running');
 const socket = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
@@ -57,6 +57,8 @@ try {
   assert.ok(!result.exceptionDetails, JSON.stringify(result.exceptionDetails));
   const album = result.result.value;
   assert.equal(album.status, 'completed');
+  const expectedStem = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
+  assert.equal(basename(album.outputVideoPath), `${expectedStem}.mp4`);
   assert.ok((await stat(album.outputVideoPath)).size > 0);
   const decode = spawnSync(ffmpeg, ['-hide_banner', '-i', album.outputVideoPath, '-f', 'null', '-'], { encoding: 'utf8' });
   assert.equal(decode.status, 0, decode.stderr);

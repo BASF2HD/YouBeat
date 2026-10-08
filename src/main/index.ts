@@ -9,12 +9,21 @@ import { queueManager } from './queueManager';
 import { testFfmpegPath, getAvailableHwEncoders, ensureOutputWritable } from './ffmpegService';
 // Suppress benign Electron dev-time security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
-app.setName('AlbumForge Studio');
+app.setName('YouBeat');
+
+// Copy the previous profile once so renaming does not reset settings or edits.
+// Leave the old profile intact as a recoverable backup.
+const profilePath = path.join(app.getPath('appData'), 'YouBeat');
+const previousProfilePath = path.join(app.getPath('appData'), 'AlbumForge Studio');
+if (!fs.existsSync(profilePath) && fs.existsSync(previousProfilePath)) {
+  fs.cpSync(previousProfilePath, profilePath, { recursive: true, errorOnExist: true });
+}
+app.setPath('userData', profilePath);
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
-  const appIconPath = path.join(__dirname, '../../resources/albumforge-icon.png');
+  const appIconPath = path.join(__dirname, '../../resources/youbeat-icon.png');
 
   if (process.platform === 'darwin' && fs.existsSync(appIconPath)) {
     app.dock?.setIcon(appIconPath);
@@ -27,7 +36,7 @@ function createWindow() {
     minHeight: 700,
     center: true,
     show: true,
-    title: 'AlbumForge Studio',
+    title: 'YouBeat',
     icon: appIconPath,
     frame: true, // Native frames are most reliable on Windows
     autoHideMenuBar: true,
@@ -221,45 +230,9 @@ ipcMain.handle('scan-albums', async (_event, rootFolder: string, recursive: bool
     const cachedLibrary = scanCache.libraries[cacheKey];
     const tempCoversDir = path.join(app.getPath('userData'), 'temp_covers');
 
-    // ========================================================================
-    // FAST PATH: Try to skip directory discovery entirely
-    // If the cached library was built with the same recursive flag and every
-    // cached album folder still exists and still contains audio files, we
-    // skip the O(N) filesystem walk.
-    // ========================================================================
-    let folders: string[] = [];
-    let usedDiscoveryFastPath = false;
-    if (cachedLibrary && cachedLibrary.recursive === recursive) {
-      const cachedFolders = Object.keys(cachedLibrary.albums);
-      if (cachedFolders.length > 0 && fs.existsSync(rootFolder)) {
-        const VALIDATE_CONCURRENCY = 20;
-        let validateOk = true;
-        for (let i = 0; i < cachedFolders.length; i += VALIDATE_CONCURRENCY) {
-          const chunk = cachedFolders.slice(i, i + VALIDATE_CONCURRENCY);
-          const results = await Promise.all(chunk.map(folderHasAudioFiles));
-          if (results.some(ok => !ok)) {
-            validateOk = false;
-            break;
-          }
-        }
-        if (validateOk) {
-          folders = cachedFolders;
-          usedDiscoveryFastPath = true;
-          console.log(`[ScanCache] Fast path: skipping directory discovery (${folders.length} cached folders all validated)`);
-          emitProgress({
-            phase: 'parsing',
-            current: 0,
-            total: folders.length,
-            currentFolder: rootFolder,
-            foldersFound: folders.length
-          });
-        }
-      }
-    }
-
-    if (!usedDiscoveryFastPath) {
-      folders = await scanForAlbums(rootFolder, recursive, emitProgress);
-    }
+    // Always rediscover directory membership: validating only cached folders
+    // cannot detect newly added albums. Keep the expensive metadata cache below.
+    const folders = await scanForAlbums(rootFolder, recursive, emitProgress);
 
     // ---- Cache validation phase: figure out which folders are cache hits ----
     const FINGERPRINT_CONCURRENCY = 12;
@@ -558,7 +531,7 @@ ipcMain.handle('test-output-writable', async (_event, outDir: string): Promise<{
 
 ipcMain.handle('get-default-output-folder', async (): Promise<string> => {
   const base = app.getPath('videos') || app.getPath('userData');
-  const out = path.join(base, 'AlbumForge Studio');
+  const out = path.join(base, 'YouBeat');
   try {
     await fs.promises.mkdir(out, { recursive: true });
   } catch {

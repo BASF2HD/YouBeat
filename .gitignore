@@ -5,6 +5,7 @@ node_modules/
 # Production build outputs
 dist/
 dist-package/
+dist-package-clean-names/
 
 # Large binaries (FFmpeg binaries exceed GitHub's 100MB limit)
 bin/*.exe
@@ -33,3 +34,10 @@ desktop.ini
 
 # Sample media (not source)
 Example Album (1987)/
+
+# Python diagnostic caches
+__pycache__/
+
+# Local visual reviews and private album-cover batches
+.design-qa/
+design-qa.md

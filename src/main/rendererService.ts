@@ -4,6 +4,7 @@ import * as path from 'path';
 import { pathToFileURL } from 'url';
 import { Album, RenderSettings } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
+import { getArtworkLayout } from '../shared/artworkLayout';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 
@@ -109,6 +110,7 @@ export function getSlideHTML(
   const coverflowFontSizes = getCoverflowFontSizes(settings);
   coverImgSrc = coverSources[activeTrackIndex] || coverImgSrc;
   const jewelCaseEnabled = artworkTheme === 'jewel' && Boolean(jewelCaseSrc);
+  const artworkLayout = getArtworkLayout(settings, jewelCaseEnabled);
   const coverContainerClass = jewelCaseEnabled ? 'cover-art-container jewel-case-enabled' : 'cover-art-container';
   const jewelCaseOverlayHTML = jewelCaseEnabled
     ? `<img class="jewel-case-overlay" src="${escapeHtml(jewelCaseSrc!)}" />`
@@ -120,7 +122,7 @@ export function getSlideHTML(
     const index = (activeTrackIndex + offset + trackCount) % trackCount;
     const source = escapeHtml(coverflowCover(index));
     const position = offset === 0 ? 'center' : `${offset < 0 ? 'left' : 'right'}-${Math.abs(offset)}`;
-    return `<div class="coverflow-item coverflow-${position}" data-flow-offset="${offset}"><img class="coverflow-cover" src="${source}" /><img class="coverflow-reflection" src="${source}" /></div>`;
+    return `<div class="coverflow-item coverflow-${position}" data-flow-offset="${offset}"><img class="coverflow-cover" src="${source}" /><div class="coverflow-reflection-plane"><img class="coverflow-reflection" src="${source}" /></div></div>`;
   }).join('');
   const activeFlowTrack = album.tracks[activeTrackIndex];
   const flowAlbumName = activeFlowTrack?.album || album.albumName;
@@ -192,7 +194,7 @@ export function getSlideHTML(
 
         /* Left Side: Cover Art (Large & Prominent) */
         .left-panel {
-          flex: 0 0 46%;
+          flex: 0 0 ${artworkLayout.coverWidth}px;
           height: 100%;
           display: flex;
           align-items: center;
@@ -202,12 +204,11 @@ export function getSlideHTML(
 
         .cover-art-container {
           position: relative;
-          height: auto;
-          max-height: 100%;
+          height: ${artworkLayout.coverHeight}px;
           aspect-ratio: 1/1;
           width: 100%;
           max-width: 100%;
-          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85);
+          box-shadow: none;
           border-radius: 0;
           overflow: hidden;
           background: #111113;
@@ -223,7 +224,7 @@ export function getSlideHTML(
         .cover-art {
           width: 100%;
           height: 100%;
-          object-fit: cover;
+          object-fit: contain;
           display: block;
         }
 
@@ -250,10 +251,14 @@ export function getSlideHTML(
 
         .container.coverflow-layout { display: block; padding: 0; background: #000; }
         .coverflow-stage { position: relative; width: 100%; height: 100%; perspective: 93.75vw; overflow: hidden; background: #000; }
-        .coverflow-item { position: absolute; width: min(50vw, 72vh); aspect-ratio: 1; bottom: 24%; transform-style: preserve-3d; }
+        .coverflow-item { position: absolute; width: min(50vw, 72vh); aspect-ratio: 1; bottom: 24%; transform-style: flat; }
         .coverflow-cover, .coverflow-reflection { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
         .coverflow-cover { border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 30px rgba(0,0,0,.8); }
-        .coverflow-reflection { position: absolute; left: 0; top: 100%; transform: scaleY(-1); transform-origin: center; opacity: .32; -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
+        /* An opaque floor plane occludes farther reflections (NaviGlass uses
+           a depth-only plane). Fade the image, never the occluding backing.
+           Flatten each sleeve so its cover/reflection share one stacking order. */
+        .coverflow-reflection-plane { position: absolute; left: 0; top: 100%; width: 100%; height: 65%; overflow: hidden; background: #000; }
+        .coverflow-reflection { transform: scaleY(-1); transform-origin: center; opacity: .32; -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); mask-image: linear-gradient(to top, rgba(0,0,0,.7), transparent 65%); }
         .coverflow-center { left: 50%; z-index: 7; transform: translateX(-50%); }
         /* Like NaviGlassPlayer, every side sleeve occupies the same plane and
            height. Only its horizontal position/depth changes through the row. */

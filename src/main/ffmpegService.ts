@@ -1,15 +1,12 @@
 import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import { app } from 'electron';
 import ffmpegStaticPath from 'ffmpeg-static';
 import * as mm from 'music-metadata';
 import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
 import { getArtworkTheme } from '../shared/artworkTheme';
-import { getCoverflowFontSizes } from '../shared/coverflow';
-import { getTrackFontSizes, getTrackRowGap } from '../shared/trackLayout';
 
 /**
  * Resolves the actual path to the ffmpeg executable.
@@ -246,7 +243,7 @@ export async function ensureOutputWritable(outDir: string): Promise<void> {
   }
 
   try {
-    const probe = path.join(outDir, `.albumforge-write-test-${process.pid}-${Date.now()}.tmp`);
+    const probe = path.join(outDir, `.youbeat-write-test-${process.pid}-${Date.now()}.tmp`);
     await fs.promises.writeFile(probe, 'ok', { encoding: 'utf-8', flag: 'w' });
     await fs.promises.unlink(probe);
   } catch (err) {
@@ -357,15 +354,7 @@ export async function renderAlbumVideo(
 
   // Build final clean safe video and folder name: "Album Name (Year)"
   const safeAlbumName = `${album.albumName}${album.year && album.year !== 'Unknown' && album.year !== 'Mix' ? ` (${album.year})` : ''}`.replace(/[\\/:*?"<>|]/g, '_').trim();
-  const coverflowSizes = getCoverflowFontSizes(settings);
-  const trackSizes = getTrackFontSizes(settings);
-  const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v6 T${coverflowSizes.song} A${coverflowSizes.album}`
-    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v9' : ' - Classic Cover v9'} T${trackSizes.title} A${trackSizes.artist} G${getTrackRowGap(settings)}`;
-  const audioSuffix = settings.audioCodec === 'alac' ? ' - Lossless' : ' - YouTube AAC 48k';
-  const mixSuffix = album.id.startsWith('mix-')
-    ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`
-    : '';
-  const outputStem = `${safeAlbumName}${mixSuffix}${themeSuffix}${audioSuffix}`;
+  const outputStem = safeAlbumName;
   
   // Dedicated folder for each album inside the output directory
   const albumOutputDir = path.join(outDir, safeAlbumName);

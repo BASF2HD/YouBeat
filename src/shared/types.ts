@@ -37,6 +37,8 @@ export interface RenderSettings {
   trackTitleFontSize?: number;
   trackArtistFontSize?: number;
   trackRowGap?: number;
+  classicCoverSizePercent?: number;
+  jewelCoverSizePercent?: number;
   trackDefaultsVersion?: number;
   audioDefaultsVersion?: number;
   activeColor: string;

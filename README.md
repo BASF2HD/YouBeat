@@ -1,4 +1,9 @@
-# AlbumForge Studio
+# YouBeat
+
+Formerly AlbumForge Studio. Existing settings, scan cache and metadata edits are
+copied into the YouBeat profile on first launch; the original profile is retained.
+Each library scan rediscovers folders, then reuses unchanged cached metadata, so
+new albums appear without clearing the cache.
 
 An Electron desktop application for Windows and macOS, built with React, TypeScript, Vite, and a bundled FFmpeg executable. It creates album videos (`.mp4`) from music folders.
 
@@ -8,13 +13,14 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 
 - **Automatic Folder Scanner**: Detects folders containing supported formats (`.mp3`, `.flac`, `.wav`, `.m4a`, `.aac`) recursively or strictly at the root level.
 - **Embedded Tag & Filename Parsing**: Automatically extracts track number, title, artist/singer, album, release year, and duration using `music-metadata`. If metadata tags are absent, the engine employs a regex parser to clean filename indicators (like leading tracks `01 -`, track lists `Song - Artist`, etc.) to generate clean fallbacks.
-- **Artwork themes**: Choose a clean cover, CD jewel case, or Cover Flow presentation in Settings. Each theme renders to a distinct output filename, so switching themes creates a new video.
+- **Artwork themes**: Choose a clean cover, CD jewel case, or Cover Flow presentation in Settings. Exported videos use only `Album Name (Year).mp4`, without theme, typography, mix IDs, or audio settings in the filename. Disable Fast Resume to replace an existing export after changing settings, or use a different output folder to keep both versions.
 - **Mix Builder**: Select and reorder songs across scanned albums. Their individual album covers appear in the Cover Flow video and live preview.
 - **Smart Adaptive Tracklist Viewport**: 
   - Generates a highlighted vertical listing of song names and singers (in italic) on the right side.
   - Classic/CD Jewel offer independent song-title and artist font controls (40/30 px defaults at 1080p), plus a saved Song row gap slider (0–40 px, default 8 px). Song numbers and play markers scale with the title size. Larger gaps show fewer rows; longer lists follow the current song instead of shrinking text or hiding artists.
-  - Cover Flow defaults to its maximum sizes: 72 px song titles and 48 px album/year captions. Captions stay inside the centre cover width, with ellipsis for long names. All typography scales consistently for 720p and the preview.
+  - Cover Flow defaults to its maximum sizes: 72 px song titles and 48 px album/year captions. Captions stay inside the centre cover width, with ellipsis for long names. All typography scales consistently for 720p and the preview. Reflections fade over opaque floor planes so farther sleeves cannot bleed through, including during slide transitions.
   - Classic/CD Jewel omit the album-summary header and use slim frame margins, fitting 12 rows at the default 40/30 px settings. When a list exceeds the available space, its visible window follows the active track.
+  - Cover size is adjustable from 50–100% of the available frame height, saved separately for Classic (100% default) and CD Jewel (75% default). Artwork stays proportional; increasing its size moves the song list right. Preview and export use the same dimensions.
 - **Efficient FFmpeg Assembly**:
   1. Encodes each track's still slide at about one frame per second to H.264, using Apple VideoToolbox on macOS when available. Inter-frame compression keeps long album files compact.
   2. Defaults to YouTube's recommended upload profile: AAC-LC at 48 kHz and 384 kb/s stereo (128 kb/s mono / 512 kb/s surround). This is a local lossy encode, not YouTube's server encoder. Lossless ALAC remains available for archival exports. YouTube re-encodes uploads regardless of the local profile.
@@ -30,7 +36,7 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 ## Project Structure
 
 ```
-AlbumForge Studio/
+YouBeat/
 ├── package.json
 ├── vite.config.ts
 ├── vite.main.config.ts           # Bundles desktop runtime dependencies
@@ -64,8 +70,8 @@ Install Node.js with npm. FFmpeg does not need a separate installation.
 ### Get Started
 1. Clone the repository and enter it:
    ```sh
-   git clone https://github.com/BASF2HD/bulk-album-video-generator.git
-   cd bulk-album-video-generator
+   git clone https://github.com/BASF2HD/YouBeat.git
+   cd YouBeat
    ```
 2. Run `npm start`.
 
