@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Album, RenderSettings, LogItem, Track, ScanProgressPayload } from '../shared/types';
-import { getTrackLayout, getTrackFontSizes } from '../shared/trackLayout';
+import { getTrackLayout, getTrackFontSizes, getTrackRowGap } from '../shared/trackLayout';
 import { shuffleMixOrder } from '../shared/mixOrder';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
@@ -114,6 +114,7 @@ export default function App() {
     coverflowDefaultsVersion: 2,
     trackTitleFontSize: 40,
     trackArtistFontSize: 30,
+    trackRowGap: 8,
     trackDefaultsVersion: 1,
     audioDefaultsVersion: 1,
     activeColor: '#ffffff',
@@ -1461,7 +1462,8 @@ export default function App() {
                 </div> : <div className="coverflow-size-settings track-size-settings">
                   <label className="input-group"><span className="input-label">Song list title size <strong>{trackFontSizes.title} px</strong></span><input aria-label="Song list title size" type="range" min="24" max="64" step="2" value={trackFontSizes.title} onChange={event => updateSettings({ trackTitleFontSize: Number(event.target.value) })} /></label>
                   <label className="input-group"><span className="input-label">Artist name size <strong>{trackFontSizes.artist} px</strong></span><input aria-label="Artist name size" type="range" min="12" max="36" step="2" value={trackFontSizes.artist} onChange={event => updateSettings({ trackArtistFontSize: Number(event.target.value) })} /></label>
-                  <small>Sizes are based on 1080p and scale for 720p/preview. Rows grow with the text, using minimal gaps. Long lists follow the active song without shrinking your chosen sizes or hiding artist names.</small>
+                  <label className="input-group"><span className="input-label">Song row gap <strong>{getTrackRowGap(settings)} px</strong></span><input aria-label="Song row gap" type="range" min="0" max="40" step="2" value={getTrackRowGap(settings)} onChange={event => updateSettings({ trackRowGap: Number(event.target.value) })} /></label>
+                  <small>Sizes and gaps are based on 1080p and scale for 720p/preview. The gap separates songs, keeping each title and artist together. Larger gaps show fewer rows; long lists follow the active song without shrinking your chosen sizes.</small>
                 </div>}
 
                 <div className="settings-section-title">Predefined video color palettes</div>
@@ -1714,7 +1716,8 @@ export default function App() {
                                 className={`preview-tracklist ${previewTrackLayout!.compact ? 'preview-dense' : ''}`}
                                 style={{
                                   gridTemplateRows: `repeat(${previewTrackLayout!.rows}, minmax(0, 1fr))`,
-                                  maxHeight: `${previewTrackLayout!.rows * previewTrackLayout!.rowHeight / previewTrackLayout!.frameWidth * 100}cqw`,
+                                  maxHeight: `${previewTrackLayout!.listHeight / previewTrackLayout!.frameWidth * 100}cqw`,
+                                  rowGap: `${previewTrackLayout!.rowGap / previewTrackLayout!.frameWidth * 100}cqw`,
                                   fontSize: `${previewTrackLayout!.metaSize / previewTrackLayout!.frameWidth * 100}cqw`,
                                 }}
                               >

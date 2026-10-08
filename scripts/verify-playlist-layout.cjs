@@ -6,12 +6,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { getSlideHTML } = require('../dist/main/rendererService');
-const { getTrackLayout } = require('../dist/shared/trackLayout');
+const { getTrackLayout, getTrackRowGap } = require('../dist/shared/trackLayout');
 const { shuffleMixOrder } = require('../dist/shared/mixOrder');
 const { getCoverflowFontSizes } = require('../dist/shared/coverflow');
 
 app.on('window-all-closed', () => {});
 app.whenReady().then(async () => {
+  assert.equal(getTrackRowGap({}), 8);
+  assert.equal(getTrackRowGap({ trackRowGap: 0 }), 0);
+  assert.equal(getTrackRowGap({ trackRowGap: 40 }), 40);
+  for (const trackRowGap of [-1, 41, NaN, Infinity, null, '20']) assert.equal(getTrackRowGap({ trackRowGap }), 8);
   const original = ['one', 'two', 'three', 'four'];
   const shuffled = shuffleMixOrder(original, () => 0);
   assert.deepEqual(original, ['one', 'two', 'three', 'four']);
@@ -28,7 +32,7 @@ app.whenReady().then(async () => {
     const [width, height] = resolution.split('x').map(Number);
     window.setContentSize(width, height);
     for (const theme of ['plain', 'jewel']) {
-      for (const fonts of [{}, { trackTitleFontSize: 24, trackArtistFontSize: 12 }, { trackTitleFontSize: 64, trackArtistFontSize: 36 }]) {
+      for (const fonts of [{}, { trackTitleFontSize: 24, trackArtistFontSize: 12 }, { trackTitleFontSize: 64, trackArtistFontSize: 36 }, { trackRowGap: 0 }, { trackRowGap: 40 }]) {
       for (const count of [1, 8, 12, 18, 24, 36, 40]) {
         const album = {
           albumName: 'Compact playlist — longer song titles', year: '2026', tracksCount: count,
@@ -45,7 +49,7 @@ app.whenReady().then(async () => {
           assert.equal(activeLayout.titleSize, layout.titleSize);
           assert.equal(activeLayout.artistSize, layout.artistSize);
         }
-        if (!fonts.trackTitleFontSize && count <= 12) assert.equal(layout.rows, count);
+        if (!fonts.trackTitleFontSize && fonts.trackRowGap == null && count <= 12) assert.equal(layout.rows, count);
         const htmlPath = path.join(outputDir, 'frame.html');
         fs.writeFileSync(htmlPath, getSlideHTML(album, active, settings, null,
           pathToFileURL(path.join(__dirname, '../resources/cd-jewel-case-overlay.png')).href));
@@ -58,6 +62,8 @@ app.whenReady().then(async () => {
           const list = rect('.tracklist');
           return { headerAbsent: !document.querySelector('.album-header'), gap: right.left - cover.right, coverRatio: cover.width / cover.height,
             rowHeight: rows[0].getBoundingClientRect().height, count: rows.length,
+            rowGap: parseFloat(getComputedStyle(document.querySelector('.tracklist')).rowGap),
+            gapsMatch: rows.slice(1).every((row, index) => Math.abs(row.getBoundingClientRect().top - rows[index].getBoundingClientRect().bottom - parseFloat(getComputedStyle(document.querySelector('.tracklist')).rowGap)) < 1),
             titleFont: parseFloat(getComputedStyle(document.querySelector('.track-title')).fontSize),
             artistFont: parseFloat(getComputedStyle(document.querySelector('.track-artist')).fontSize),
             artistCount: document.querySelectorAll('.track-artist').length,
@@ -73,6 +79,8 @@ app.whenReady().then(async () => {
         })()`);
         assert.equal(metrics.count, layout.rows);
         assert.ok(metrics.headerAbsent);
+        assert.ok(metrics.gapsMatch);
+        assert.ok(Math.abs(metrics.rowGap - layout.rowGap) < .01);
         assert.equal(Number(metrics.activeNumber), count);
         assert.equal(metrics.artistCount, layout.rows);
         assert.ok(Math.abs(metrics.titleFont - layout.titleSize) < .01);
@@ -91,11 +99,11 @@ app.whenReady().then(async () => {
         assert.ok(Math.abs(metrics.rowHeight - layout.rowHeight) < 1);
         assert.ok(Math.abs(metrics.gap - 20 * layout.scale) < 1);
         assert.ok(Math.abs(metrics.coverRatio - (theme === 'plain' ? 1 : 3295 / 3008)) < .01);
-        if (resolution === '1920x1080' && !fonts.trackTitleFontSize && [8, 12, 36].includes(count)) {
+        if (resolution === '1920x1080' && !fonts.trackTitleFontSize && fonts.trackRowGap == null && [8, 12, 36].includes(count)) {
           const image = await window.webContents.capturePage();
           fs.writeFileSync(path.join(outputDir, `${theme}-${count}.png`), image.toPNG());
         }
-        console.log(`${resolution} ${theme} ${count}: ${metrics.count} visible, title ${metrics.titleFont.toFixed(1)}px, artist ${metrics.artistFont.toFixed(1)}px, row ${metrics.rowHeight.toFixed(1)}px`);
+        console.log(`${resolution} ${theme} ${count}: ${metrics.count} visible, title ${metrics.titleFont.toFixed(1)}px, artist ${metrics.artistFont.toFixed(1)}px, row ${metrics.rowHeight.toFixed(1)}px, gap ${metrics.rowGap.toFixed(1)}px`);
         cases++;
       }
       }

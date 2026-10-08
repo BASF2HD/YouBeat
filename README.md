@@ -12,7 +12,7 @@ An Electron desktop application for Windows and macOS, built with React, TypeScr
 - **Mix Builder**: Select and reorder songs across scanned albums. Their individual album covers appear in the Cover Flow video and live preview.
 - **Smart Adaptive Tracklist Viewport**: 
   - Generates a highlighted vertical listing of song names and singers (in italic) on the right side.
-  - Classic/CD Jewel offer independent song-title and artist font controls (40/30 px defaults at 1080p). Song numbers and play markers scale with the title size. Rows grow with the chosen sizes; longer lists follow the current song instead of shrinking text or hiding artists.
+  - Classic/CD Jewel offer independent song-title and artist font controls (40/30 px defaults at 1080p), plus a saved Song row gap slider (0–40 px, default 8 px). Song numbers and play markers scale with the title size. Larger gaps show fewer rows; longer lists follow the current song instead of shrinking text or hiding artists.
   - Cover Flow defaults to its maximum sizes: 72 px song titles and 48 px album/year captions. Captions stay inside the centre cover width, with ellipsis for long names. All typography scales consistently for 720p and the preview.
   - Classic/CD Jewel omit the album-summary header and use slim frame margins, fitting 12 rows at the default 40/30 px settings. When a list exceeds the available space, its visible window follows the active track.
 - **Efficient FFmpeg Assembly**:

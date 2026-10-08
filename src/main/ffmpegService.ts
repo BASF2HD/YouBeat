@@ -9,7 +9,7 @@ import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes } from '../shared/coverflow';
-import { getTrackFontSizes } from '../shared/trackLayout';
+import { getTrackFontSizes, getTrackRowGap } from '../shared/trackLayout';
 
 /**
  * Resolves the actual path to the ffmpeg executable.
@@ -360,7 +360,7 @@ export async function renderAlbumVideo(
   const coverflowSizes = getCoverflowFontSizes(settings);
   const trackSizes = getTrackFontSizes(settings);
   const themeSuffix = getArtworkTheme(settings) === 'coverflow' ? ` - Cover Flow Gallery v6 T${coverflowSizes.song} A${coverflowSizes.album}`
-    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v8' : ' - Classic Cover v8'} T${trackSizes.title} A${trackSizes.artist}`;
+    : `${getArtworkTheme(settings) === 'jewel' ? ' - CD Jewel Case v9' : ' - Classic Cover v9'} T${trackSizes.title} A${trackSizes.artist} G${getTrackRowGap(settings)}`;
   const audioSuffix = settings.audioCodec === 'alac' ? ' - Lossless' : ' - YouTube AAC 48k';
   const mixSuffix = album.id.startsWith('mix-')
     ? ` - Mix ${crypto.createHash('sha256').update(album.tracks.map(track => `${track.filePath}\0${track.title}`).join('\n')).digest('hex').slice(0, 8)}`

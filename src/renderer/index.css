@@ -783,7 +783,7 @@ body.preview-resizing .workspace-content {
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  padding: 1.25cqw 1.6667cqw;
+  padding: 1.0417cqw 1.6667cqw;
   gap: 1.0417cqw;
   align-items: center;
   position: relative;

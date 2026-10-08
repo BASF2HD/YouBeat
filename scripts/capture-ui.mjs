@@ -13,6 +13,7 @@ const verifyCoverflowMotion = process.argv.includes('--verify-coverflow-motion')
 const verifyCoverflowSettings = process.argv.includes('--verify-coverflow-settings');
 const verifyTrackSettings = process.argv.includes('--verify-track-settings');
 const verifyTrackAlignment = process.argv.includes('--verify-track-alignment');
+const verifyRowGap = process.argv.includes('--verify-row-gap');
 const losslessAudio = process.argv.includes('--lossless-audio');
 const verifyCoverflowCaption = process.argv.includes('--verify-coverflow-caption');
 const scrollFontSettings = process.argv.includes('--scroll-font-settings');
@@ -235,7 +236,7 @@ if (verifyTrackSettings) {
     expression: `(async () => {
       const wait = () => new Promise(resolve => setTimeout(resolve, 120));
       [...document.querySelectorAll('button')].find(button => button.textContent.includes('Settings'))?.click(); await wait();
-      const inputs = [...document.querySelectorAll('.track-size-settings input')];
+      const inputs = [...document.querySelectorAll('.track-size-settings input')].slice(0, 2);
       if (inputs.length !== 2) return { error: 'Track font controls missing' };
       const original = inputs.map(input => input.value);
       const measure = () => {
@@ -258,7 +259,7 @@ if (verifyTrackSettings) {
       const activeVisible = Boolean(document.querySelector('.preview-track-active'));
       const list = document.querySelector('.preview-tracklist').getBoundingClientRect();
       const rowsFit = [...document.querySelectorAll('.preview-track-item')].every(row => row.getBoundingClientRect().bottom <= list.bottom + 1);
-      const currentInputs = [...document.querySelectorAll('.track-size-settings input')];
+      const currentInputs = [...document.querySelectorAll('.track-size-settings input')].slice(0, 2);
       currentInputs.forEach((input, index) => set(input, original[index])); await wait();
       return { original, before, after, activeVisible, rowsFit, persisted: saved.trackTitleFontSize === 64 && saved.trackArtistFontSize === 36,
         expanded: after.row > before.row && after.title > before.title && after.artist > before.artist && after.rows < before.rows };
@@ -267,6 +268,39 @@ if (verifyTrackSettings) {
   const checks = result.result.value;
   if (checks.error || !checks.persisted || !checks.expanded || !checks.activeVisible || !checks.rowsFit) throw new Error(`Track typography UI check failed: ${JSON.stringify(checks)}`);
   console.log(`Track typography UI checks passed: ${JSON.stringify(checks)}`);
+}
+
+if (verifyRowGap) {
+  const result = await send('Runtime.evaluate', {
+    expression: `(async () => {
+      const wait = () => new Promise(resolve => setTimeout(resolve, 120));
+      [...document.querySelectorAll('button')].find(button => button.textContent.includes('Settings'))?.click(); await wait();
+      const input = document.querySelector('input[aria-label="Song row gap"]');
+      if (!input) return { error: 'Song row gap slider missing' };
+      const original = input.value;
+      const set = value => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      const measure = () => {
+        const list = document.querySelector('.preview-tracklist'), rows = [...list.querySelectorAll('.preview-track-item')];
+        const gap = parseFloat(getComputedStyle(list).rowGap), box = list.getBoundingClientRect();
+        return { gap, rows: rows.length, title: parseFloat(getComputedStyle(rows[0].querySelector('.preview-track-title')).fontSize),
+          fits: rows.every(row => row.getBoundingClientRect().bottom <= box.bottom + 1),
+          measured: rows.length > 1 ? rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom : 0,
+          active: Boolean(list.querySelector('.preview-track-active')) };
+      };
+      set('0'); await wait(); const compact = measure();
+      set('40'); await wait(); const spacious = measure();
+      const persisted = JSON.parse(localStorage.getItem('render_settings')).trackRowGap === 40;
+      set(original); await wait();
+      return { original, compact, spacious, persisted, restored: JSON.parse(localStorage.getItem('render_settings')).trackRowGap === Number(original) };
+    })()`, awaitPromise: true, returnByValue: true,
+  });
+  const check = result.result.value;
+  if (check.error || !check.persisted || !check.restored || check.compact.gap !== 0 || check.spacious.gap <= 0 || Math.abs(check.spacious.measured - check.spacious.gap) >= 1 || check.spacious.rows >= check.compact.rows || Math.abs(check.spacious.title - check.compact.title) > .01 || !check.compact.fits || !check.spacious.fits || !check.spacious.active) throw new Error(`Row gap UI check failed: ${JSON.stringify(check)}`);
+  console.log(`Song row gap controls passed: ${JSON.stringify(check)}`);
 }
 
 if (verifyCoverflowCaption) {

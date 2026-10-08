@@ -183,7 +183,7 @@ export function getSlideHTML(
           width: 100%;
           height: 100%;
           display: flex;
-          padding: ${24 * layout.scale}px ${32 * layout.scale}px;
+          padding: ${20 * layout.scale}px ${32 * layout.scale}px;
           gap: ${20 * layout.scale}px;
           align-items: center;
           background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.03) 0%, rgba(0,0,0,0) 70%), 
@@ -287,11 +287,12 @@ export function getSlideHTML(
 
         .tracklist {
           flex: 1;
-          max-height: ${layout.rows * layout.rowHeight}px;
+          max-height: ${layout.listHeight}px;
           min-height: 0;
           display: grid;
           grid-template-columns: minmax(0, 1fr);
           grid-template-rows: repeat(${layout.rows}, minmax(0, 1fr));
+          row-gap: ${layout.rowGap}px;
           overflow: hidden;
         }
 

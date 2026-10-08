@@ -1,6 +1,11 @@
 import { RenderSettings } from './types';
 
-type TrackTypography = Pick<RenderSettings, 'trackTitleFontSize' | 'trackArtistFontSize'>;
+type TrackTypography = Pick<RenderSettings, 'trackTitleFontSize' | 'trackArtistFontSize' | 'trackRowGap'>;
+
+export function getTrackRowGap(settings: TrackTypography = {}) {
+  const value = settings.trackRowGap;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 40 ? Math.round(value) : 8;
+}
 
 export function getTrackFontSizes(settings: TrackTypography = {}) {
   const validSize = (value: number | undefined, fallback: number, min: number, max: number) =>
@@ -24,11 +29,12 @@ export function getTrackLayout(trackCount: number, activeTrackIndex: number, res
   const markerGap = titleSize * .15;
   // Reserve enough space for three-digit track numbers as well as the icon.
   const markerWidth = playSize + markerGap + numberSize * 1.8;
-  // Each row retains both lines plus only six reference pixels of breathing room.
-  // No album-summary header: use the full frame height inside slim safe margins.
-  const availableHeight = (1080 - 24 * 2) * scale;
-  const rowHeight = titleSize * 1.15 + artistSize * 1.1 + 6 * scale;
-  const capacity = Math.max(1, Math.floor(availableHeight / rowHeight));
+  // Separate song rows with a real grid gap, not space between title and artist.
+  // Slim safe margins still allow 12 default-sized rows with the new 8px gap.
+  const availableHeight = (1080 - 20 * 2) * scale;
+  const rowHeight = titleSize * 1.15 + artistSize * 1.1;
+  const rowGap = getTrackRowGap(settings) * scale;
+  const capacity = Math.max(1, Math.floor((availableHeight + rowGap) / (rowHeight + rowGap)));
   const visibleCount = Math.min(trackCount, capacity);
   const rows = Math.max(1, visibleCount);
   const start = trackCount > capacity
@@ -42,6 +48,8 @@ export function getTrackLayout(trackCount: number, activeTrackIndex: number, res
     rows,
     compact: false,
     rowHeight,
+    rowGap,
+    listHeight: rows * rowHeight + Math.max(0, rows - 1) * rowGap,
     frameWidth,
     scale,
     titleSize,
