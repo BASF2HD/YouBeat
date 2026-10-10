@@ -1,4 +1,4 @@
-# YouBeat 1.0.1
+# YouBeat 1.0.2
 
 Create album videos locally for manual upload to YouTube.
 
