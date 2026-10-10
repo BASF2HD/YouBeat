@@ -1,5 +1,9 @@
 # YouBeat
 
+[Download releases](https://github.com/BASF2HD/YouBeat/releases) · [Website](https://BASF2HD.github.io/YouBeat/)
+
+Standalone downloads need no development tools. Builds are unsigned and not Apple-notarized; verify release SHA256SUMS before opening. Public release workflows require native packaged Mac and Windows tests to pass.
+
 Formerly AlbumForge Studio. Existing settings, scan cache and metadata edits are
 copied into the YouBeat profile on first launch; the original profile is retained.
 Each library scan rediscovers folders, then reuses unchanged cached metadata, so
@@ -95,7 +99,7 @@ npm install
 npm run dist:win
 ```
 
-On macOS (Apple Silicon or Intel), build a `.dmg` installer and `.zip` containing the `.app`:
+On Apple Silicon macOS (12 or later), build a `.dmg` installer and `.zip` containing the `.app`:
 ```sh
 npm install
 npm run dist:mac
@@ -111,6 +115,10 @@ Build on the same OS and CPU architecture as the intended package, using a fresh
 This repository is a desktop application, not a browser-only web application. Its UI uses web technologies, but scanning local folders, launching FFmpeg and capturing export frames depend on Electron/Node. A web version would need a server rendering backend or a separate browser-compatible media pipeline.
 
 ### Packaged render regression test
+
+Run `node scripts/test-packaged.mjs "path/to/packaged/executable"`. It launches an isolated temporary app profile, tests the real IPC metadata parser/output checks/jewel overlay/queue, and decodes a short synthetic H.264/AAC 48 kHz MP4. It never touches your library or saved settings.
+
+Packaging provisions a checksum-pinned GPL FFmpeg build under `.vendor/ffmpeg`; licenses and provenance ship beside the executable. Mac packages use dfloresc/ffmpeg-macos-builds v9.0.1-1, including shared libraries and corresponding source archives in the release. Windows retains the checksum-verified Gyan GPLv3 build from ffmpeg-static 5.3.0. The build hook refuses nonfree or cross-platform binaries.
 
 Before distributing a build, launch the packaged app with `--remote-debugging-port=9222`, then run `node scripts/verify-packaged-render.mjs --ffmpeg="/absolute/path/to/the/packaged/ffmpeg"`. Optionally pass `--output-folder="/your/existing/output"` to test that folder with a removable write probe. The test creates temporary synthetic audio, exercises the real IPC output check, metadata parser and render queue, then decodes the finished MP4. It does not render your music library or change your saved output setting.
 

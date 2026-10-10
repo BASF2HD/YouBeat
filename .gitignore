@@ -1,6 +1,10 @@
 ﻿# Dependencies
 node_modules/
 .pnpm-store/
+.vendor/
+ffmpeg-sources/
+release-assets/
+site-preview.log
 
 # Production build outputs
 dist/

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { Album, RenderSettings, LogItem, ScanProgressPayload } from '../shared/types';
 
 contextBridge.exposeInMainWorld('api', {
+  getJewelCaseOverlay: () => ipcRenderer.invoke('get-jewel-case-overlay'),
   platform: process.platform,
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   copyText: (text: string) => ipcRenderer.invoke('copy-text', text),

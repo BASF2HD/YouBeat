@@ -6,6 +6,7 @@ import { Album, RenderSettings } from '../shared/types';
 import { getTrackLayout } from '../shared/trackLayout';
 import { getArtworkLayout } from '../shared/artworkLayout';
 import { getArtworkTheme } from '../shared/artworkTheme';
+import { readJewelCaseOverlay } from './jewelCaseAsset';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 
 /**
@@ -446,10 +447,7 @@ export async function generateSlidesForAlbum(
 
   let jewelCaseSrc: string | null = null;
   if (getArtworkTheme(settings) === 'jewel') {
-    const jewelCasePath = path.join(__dirname, '../../resources/cd-jewel-case-overlay.png');
-    if (fs.existsSync(jewelCasePath)) {
-      jewelCaseSrc = pathToFileURL(jewelCasePath).href;
-    }
+    jewelCaseSrc = await readJewelCaseOverlay();
   }
 
   // Create a hidden browser window

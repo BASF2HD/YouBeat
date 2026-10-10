@@ -2,7 +2,6 @@ import { spawn } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
-import ffmpegStaticPath from 'ffmpeg-static';
 import * as mm from 'music-metadata';
 import { Album, RenderSettings, LogItem } from '../shared/types';
 import { formatDuration } from './rendererService';
@@ -17,10 +16,10 @@ export function resolveFfmpegPath(configuredPath: string): string {
   const base = configuredPath || 'ffmpeg';
   if (base === 'ffmpeg') {
     const executableName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-    const bundledPath = ffmpegStaticPath?.replace('app.asar', 'app.asar.unpacked');
     const candidates = [
-      bundledPath,
-      path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', executableName),
+      path.join(process.resourcesPath, 'ffmpeg', 'bin', executableName),
+      path.join(app.getAppPath(), '.vendor', 'ffmpeg', 'bin', executableName),
+      ...(!app.isPackaged ? [path.join(app.getAppPath(), 'node_modules', 'ffmpeg-static', executableName)] : []),
       path.join(app.getAppPath(), 'bin', executableName),
       path.join(process.cwd(), 'bin', executableName),
       '/opt/homebrew/bin/ffmpeg',

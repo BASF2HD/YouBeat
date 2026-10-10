@@ -6,6 +6,8 @@ import { Album, RenderSettings } from '../shared/types';
 import { scanForAlbums, ScanProgress } from './scanner';
 import { parseAlbumFolder } from './metadata';
 import { queueManager } from './queueManager';
+import { readJewelCaseOverlay } from './jewelCaseAsset';
+import { runPackagedSelfTest } from './releaseSelfTest';
 import { testFfmpegPath, getAvailableHwEncoders, ensureOutputWritable } from './ffmpegService';
 // Suppress benign Electron dev-time security warnings
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
@@ -13,9 +15,12 @@ app.setName('YouBeat');
 
 // Copy the previous profile once so renaming does not reset settings or edits.
 // Leave the old profile intact as a recoverable backup.
-const profilePath = path.join(app.getPath('appData'), 'YouBeat');
+const releaseTest = process.argv.includes('--desktop-self-test');
+const testProfile = process.argv.find(arg => arg.startsWith('--test-profile='))?.slice('--test-profile='.length);
+if (releaseTest && (!testProfile || !path.isAbsolute(testProfile))) throw new Error('Release self-test requires an isolated absolute --test-profile');
+const profilePath = releaseTest ? testProfile! : path.join(app.getPath('appData'), 'YouBeat');
 const previousProfilePath = path.join(app.getPath('appData'), 'AlbumForge Studio');
-if (!fs.existsSync(profilePath) && fs.existsSync(previousProfilePath)) {
+if (!releaseTest && !fs.existsSync(profilePath) && fs.existsSync(previousProfilePath)) {
   fs.cpSync(previousProfilePath, profilePath, { recursive: true, errorOnExist: true });
 }
 app.setPath('userData', profilePath);
@@ -81,6 +86,12 @@ if (!gotTheLock) {
 
   app.whenReady().then(() => {
     createWindow();
+    if (releaseTest && mainWindow) {
+      const testWindow = mainWindow;
+      testWindow.webContents.once('did-finish-load', () => {
+        runPackagedSelfTest(testWindow).catch(error => { console.error(error); app.exit(1); });
+      });
+    }
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -212,6 +223,8 @@ ipcMain.handle('select-folder', async () => {
   }
   return result.filePaths[0];
 });
+
+ipcMain.handle('get-jewel-case-overlay', () => readJewelCaseOverlay());
 
 ipcMain.handle('copy-text', (_event, text: string): void => {
   clipboard.writeText(text);

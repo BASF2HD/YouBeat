@@ -73,6 +73,7 @@ export interface ScanProgressPayload {
 }
 
 export interface IPCAPI {
+  getJewelCaseOverlay: () => Promise<string>;
   platform: string;
   selectFolder: () => Promise<string | null>;
   copyText: (text: string) => Promise<void>;

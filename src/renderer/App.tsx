@@ -6,7 +6,6 @@ import { shuffleMixOrder } from '../shared/mixOrder';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 import appLogo from '../../resources/youbeat-icon.png';
-import jewelCaseOverlay from '../../resources/cd-jewel-case-overlay.png';
 
 const PREVIEW_PANE_MIN_WIDTH = 320;
 const PREVIEW_PANE_MAX_WIDTH = 720;
@@ -102,6 +101,18 @@ export const PREDEFINED_PALETTES: ColorPalette[] = [
 ];
 
 export default function App() {
+  const [jewelCaseOverlay, setJewelCaseOverlay] = useState('');
+  useEffect(() => {
+    let disposed = false;
+    const refresh = () => {
+      void window.api.getJewelCaseOverlay().then(asset => {
+        if (!disposed) setJewelCaseOverlay(asset);
+      }).catch(error => console.error('Could not load CD jewel case overlay:', error));
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => { disposed = true; window.removeEventListener('focus', refresh); };
+  }, []);
   // Tabs routing state
   const [activeTab, setActiveTab] = useState<'library' | 'mix' | 'queue' | 'logs' | 'settings'>('library');
 
@@ -1710,7 +1721,7 @@ export default function App() {
                                     {selectedAlbum.albumName.slice(0, 20)}
                                   </div>
                                 )}
-                                {getArtworkTheme(settings) === 'jewel' && (
+                                {getArtworkTheme(settings) === 'jewel' && jewelCaseOverlay && (
                                   <img className="preview-jewel-case-overlay" src={jewelCaseOverlay} alt="" />
                                 )}
                               </div>

@@ -1,6 +1,6 @@
 {
   "name": "youbeat",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "YouBeat — batch album-video production for YouTube",
   "main": "dist/main/index.js",
   "author": "YouBeat",
@@ -12,10 +12,10 @@
     "build": "npm run build:renderer && npm run build:main",
     "electron:dev": "electron .",
     "start": "node scripts/start.cjs",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder --publish never",
-    "dist:mac": "npm run build && electron-builder --mac --publish never",
-    "dist:win": "npm run build && electron-builder --win --publish never"
+    "pack": "node scripts/prepare-ffmpeg.mjs && npm run build && electron-builder --dir --publish never",
+    "dist": "node scripts/prepare-ffmpeg.mjs && npm run build && electron-builder --publish never",
+    "dist:mac": "node scripts/prepare-ffmpeg.mjs && npm run build && electron-builder --mac --arm64 --publish never",
+    "dist:win": "node scripts/prepare-ffmpeg.mjs && npm run build && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "ffmpeg-static": "5.3.0",
@@ -45,10 +45,11 @@
     "files": [
       "dist/**/*",
       "resources/**/*",
-      "index.html"
+      "index.html",
+      "!node_modules/**/*"
     ],
-    "asarUnpack": [
-      "node_modules/ffmpeg-static/ffmpeg*"
+    "extraResources": [
+      { "from": ".vendor/ffmpeg", "to": "ffmpeg" }
     ],
     "win": {
       "target": ["nsis", "portable"],
@@ -64,7 +65,9 @@
     },
     "mac": {
       "target": ["dmg", "zip"],
-      "category": "public.app-category.music"
+      "category": "public.app-category.music",
+      "identity": null,
+      "minimumSystemVersion": "12.0"
     }
   }
 }
