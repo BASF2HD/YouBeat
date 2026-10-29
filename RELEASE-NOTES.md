@@ -1,4 +1,4 @@
-# YouBeat 1.1.2
+# YouBeat 1.1.3
 
 Optional back-cover artwork and square fitting for the CD jewel case theme, with native packages for Windows x64, Apple Silicon Macs and Intel Macs.
 
@@ -13,9 +13,9 @@ Optional back-cover artwork and square fitting for the CD jewel case theme, with
 
 ## Downloads
 
-- **Apple Silicon Mac:** `YouBeat-1.1.2-mac-arm64.dmg` or `.zip`.
-- **Intel Mac:** `YouBeat-1.1.2-mac-x64.dmg` or `.zip`.
-- **Windows x64:** `YouBeat-1.1.2-win-x64-Setup.exe` or `YouBeat-1.1.2-win-x64-Portable.exe`.
+- **Apple Silicon Mac:** `YouBeat-1.1.3-mac-arm64.dmg` or `.zip`.
+- **Intel Mac:** `YouBeat-1.1.3-mac-x64.dmg` or `.zip`.
+- **Windows x64:** `YouBeat-1.1.3-win-x64-Setup.exe` or `YouBeat-1.1.3-win-x64-Portable.exe`.
 
 Standalone packages include Electron and FFmpeg. No Node.js, npm or separate FFmpeg installation is needed. Turn off Fast Resume / skip existing when replacing an already exported video with new artwork.
 

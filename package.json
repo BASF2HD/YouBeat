@@ -1,6 +1,6 @@
 {
   "name": "youbeat",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "YouBeat — batch album-video production for YouTube",
   "main": "dist/main/index.js",
   "author": "YouBeat",

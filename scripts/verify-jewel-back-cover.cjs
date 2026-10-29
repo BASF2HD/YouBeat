@@ -119,7 +119,16 @@ app.whenReady().then(async () => {
     try { return await window.webContents.executeJavaScript(expression); }
     catch (error) { throw new Error(`${error.message}\nExpression: ${expression}`); }
   };
+  const waitFor = async (expression, description) => {
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline) {
+      if (await evaluate(expression)) return;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    throw new Error(`Timed out waiting for ${description}`);
+  };
   const click = async label => {
+    await waitFor(`Array.from(document.querySelectorAll('button')).some(button => button.textContent.includes(${JSON.stringify(label)}) && !button.disabled)`, `enabled button: ${label}`);
     assert.ok(await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(b => b.textContent.includes(${JSON.stringify(label)})); button?.click(); return Boolean(button); })()`), `Button missing: ${label}`);
     await new Promise(resolve => setTimeout(resolve, 150));
   };
@@ -133,12 +142,12 @@ app.whenReady().then(async () => {
   const selectedFirst = await evaluate(`document.querySelector('.album-artwork-choice:nth-child(2) img').src`);
   fs.copyFileSync(front, back);
   await evaluate(`document.querySelector('.album-artwork-choice:nth-child(2) button').click()`);
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await waitFor(`document.querySelector('.album-artwork-choice:nth-child(2) img').src !== ${JSON.stringify(selectedFirst)}`, 'replacement artwork');
   const selectedSecond = await evaluate(`document.querySelector('.album-artwork-choice:nth-child(2) img').src`);
   assert.notEqual(selectedFirst, selectedSecond, 'Editor refreshes same-name replacements');
   fs.copyFileSync(rectangular, back);
   await evaluate(`document.querySelector('.album-artwork-choice:nth-child(2) button').click()`);
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await waitFor(`document.querySelector('.album-artwork-choice:nth-child(2) img').src !== ${JSON.stringify(selectedSecond)}`, 'rectangular artwork');
   await click('Crop / fit to square');
   assert.ok(await evaluate(`[...document.querySelectorAll('.editor-footer button')].find(button => button.textContent.includes('Save overrides')).disabled`), 'Apply or cancel crop before saving album');
   for (let attempt = 0; attempt < 50; attempt++) {
@@ -161,15 +170,17 @@ app.whenReady().then(async () => {
   await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
   fs.writeFileSync(path.join(root, 'crop-editor.png'), (await captureRenderedWindow(window)).toPNG());
   await click('Use square artwork');
+  await waitFor(`!document.querySelector('.artwork-cropper')`, 'saved square artwork');
   assert.ok(await evaluate(`!document.querySelector('.artwork-cropper')`));
   await click('Save overrides');
+  await waitFor(`!document.querySelector('.editor-dialog')`, 'saved album');
   const croppedPath = (await queueManager.loadMetadataCache())[album.id].backCoverPath;
   assert.ok(croppedPath.includes('back-cover-square-'));
   const croppedPixel = run(['-i', croppedPath, '-vf', 'format=rgb24,crop=1:1:150:150', '-frames:v', '1', '-f', 'rawvideo', '-']);
   assert.ok(croppedPixel[2] > 200, 'Saved crop matches the selected blue area');
   await click('Settings');
   await evaluate(`document.querySelector('input[name="artwork-theme"][value="jewel"]').click()`);
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await waitFor(`Boolean(document.querySelector('.jewel-flip')?.getAnimations().length)`, 'preview animation');
   const preview = await evaluate(`(() => {
     const flip = document.querySelector('.jewel-flip');
     if (!flip) return null;
