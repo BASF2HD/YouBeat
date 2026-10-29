@@ -12,7 +12,7 @@ const { spawnSync } = require('node:child_process');
 const { getJewelFlipTiming, jewelFlipAngle } = require('../dist/shared/jewelFlip');
 const { getSquareArtworkLayout } = require('../dist/shared/artworkCrop');
 const { importArtworkFile, readArtwork, saveCroppedArtwork } = require('../dist/main/artworkStore');
-const { generateSlidesForAlbum, getSlideHTML } = require('../dist/main/rendererService');
+const { generateSlidesForAlbum, getSlideHTML, captureRenderedWindow } = require('../dist/main/rendererService');
 const { renderAlbumVideo, resolveFfmpegPath } = require('../dist/main/ffmpegService');
 const { queueManager } = require('../dist/main/queueManager');
 
@@ -95,6 +95,11 @@ app.whenReady().then(async () => {
     assert.ok(r > b * 1.5, `Front artwork should be red at ${time}s: ${[r, g, b]}`);
   }
   }
+  if (process.argv.includes('--export-only')) {
+    console.log(JSON.stringify({ ok: true, root, video: video?.videoPath, checks: ['offscreen-paint', 'five-second-hold', 'front-return', 'audio-sample-alignment'] }));
+    app.exit(0);
+    return;
+  }
   // Exercise the built React editor with a fixture IPC backend and isolated storage.
   for (const [channel, handler] of Object.entries({
     'get-jewel-case-overlay': () => '', 'get-default-output-folder': () => root,
@@ -105,7 +110,8 @@ app.whenReady().then(async () => {
     'save-album-metadata': (_event, id, update) => queueManager.saveAlbumMetadata(id, update)
   })) ipcMain.handle(channel, handler);
   const window = new BrowserWindow({ show: false, width: 1360, height: 900, webPreferences: {
-    preload: path.resolve(__dirname, '../dist/main/preload.js'), contextIsolation: true, nodeIntegration: false
+    preload: path.resolve(__dirname, '../dist/main/preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: false,
+    offscreen: process.platform === 'win32'
   } });
   await window.loadFile(path.resolve(__dirname, '../dist/renderer/index.html'));
   window.webContents.on('console-message', (_event, level, message) => { if (level >= 2) console.error('Renderer:', message); });
@@ -153,7 +159,7 @@ app.whenReady().then(async () => {
   assert.ok((await canvasPixel(256, 256))[2] > 200, 'Crop can move to the right edge');
   await evaluate(`document.querySelector('.artwork-cropper').scrollIntoView({ block: 'center' })`);
   await evaluate(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
-  fs.writeFileSync(path.join(root, 'crop-editor.png'), (await window.webContents.capturePage()).toPNG());
+  fs.writeFileSync(path.join(root, 'crop-editor.png'), (await captureRenderedWindow(window)).toPNG());
   await click('Use square artwork');
   assert.ok(await evaluate(`!document.querySelector('.artwork-cropper')`));
   await click('Save overrides');
@@ -184,7 +190,7 @@ app.whenReady().then(async () => {
     return { x: box.left + box.width / 2, y: box.top + box.height / 2, width: innerWidth,
       transform: getComputedStyle(document.querySelector('.jewel-flip')).transform };
   })()`);
-  const screenshot = await window.webContents.capturePage();
+  const screenshot = await captureRenderedWindow(window);
   const scale = screenshot.getSize().width / sample.width;
   const previewFile = path.join(root, 'preview-back.png');
   fs.writeFileSync(previewFile, screenshot.toPNG());

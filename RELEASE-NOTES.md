@@ -1,4 +1,4 @@
-# YouBeat 1.1.1
+# YouBeat 1.1.2
 
 Optional back-cover artwork and square fitting for the CD jewel case theme, with native packages for Windows x64, Apple Silicon Macs and Intel Macs.
 
@@ -7,14 +7,15 @@ Optional back-cover artwork and square fitting for the CD jewel case theme, with
 - Each song turns the jewel case from right to left over one second, holds the back for five seconds, then turns back to the front. Preview and exported video use the same timing. Short songs shorten the animation to fit; albums without back artwork keep the front visible.
 - Artwork choices persist across scans and restarts and follow the album into mixed-song videos.
 - Fix Mac FFmpeg library links so bundled libraries remain portable after installation. Source development uses the installed native FFmpeg binary.
+- Use an offscreen compositor for Windows video frames so rendering also works without an active desktop capture surface.
 - Normalize Windows slide file URLs and run hosted Windows rendering tests with software compositing; normal app graphics settings are unchanged.
 - Retain Classic, jewel case and Cover Flow themes; album and mixed-song rendering; AAC-LC or ALAC audio; MP4, thumbnail and chapter-description exports.
 
 ## Downloads
 
-- **Apple Silicon Mac:** `YouBeat-1.1.1-mac-arm64.dmg` or `.zip`.
-- **Intel Mac:** `YouBeat-1.1.1-mac-x64.dmg` or `.zip`.
-- **Windows x64:** `YouBeat-1.1.1-win-x64-Setup.exe` or `YouBeat-1.1.1-win-x64-Portable.exe`.
+- **Apple Silicon Mac:** `YouBeat-1.1.2-mac-arm64.dmg` or `.zip`.
+- **Intel Mac:** `YouBeat-1.1.2-mac-x64.dmg` or `.zip`.
+- **Windows x64:** `YouBeat-1.1.2-win-x64-Setup.exe` or `YouBeat-1.1.2-win-x64-Portable.exe`.
 
 Standalone packages include Electron and FFmpeg. No Node.js, npm or separate FFmpeg installation is needed. Turn off Fast Resume / skip existing when replacing an already exported video with new artwork.
 

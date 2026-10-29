@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, NativeImage, nativeImage } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
@@ -9,6 +9,28 @@ import { getArtworkTheme } from '../shared/artworkTheme';
 import { readJewelCaseOverlay } from './jewelCaseAsset';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 import { getJewelFlipTiming, JEWEL_FLIP_FRAMES, jewelFlipAngle, jewelFlipCSS } from '../shared/jewelFlip';
+
+export async function captureRenderedWindow(win: BrowserWindow): Promise<NativeImage> {
+  const contents = win.webContents;
+  if (!contents.isOffscreen()) return contents.capturePage();
+  // Software offscreen rendering produces a bitmap in the paint event, without
+  // the desktop surface required by capturePage/frame subscriptions.
+  const nextPaint = () => new Promise<NativeImage>((resolve, reject) => {
+    const timer = setTimeout(() => { contents.off('paint', painted); reject(new Error('Timed out waiting for offscreen artwork paint')); }, 5000);
+    const painted = (_event: unknown, _rect: unknown, image: NativeImage) => {
+      clearTimeout(timer);
+      contents.off('paint', painted);
+      resolve(nativeImage.createFromBuffer(image.toPNG()));
+    };
+    contents.on('paint', painted);
+    contents.invalidate();
+  });
+  // Drain an already queued paint before requesting the snapshot. Navigation
+  // and CSS changes can otherwise return the previous track's compositor frame.
+  await contents.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  await nextPaint();
+  return nextPaint();
+}
 
 /**
  * Escapes HTML characters to prevent XSS/rendering issues with metadata text.
@@ -472,25 +494,28 @@ export async function generateSlidesForAlbum(
   }
 
   // Create a hidden browser window
-  const win = new BrowserWindow({
-    show: false,
-    width: width,
-    height: height,
-    useContentSize: true,
-    enableLargerThanScreen: true,
-    skipTaskbar: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      offscreen: false
-    }
-  });
-
-  // Ensure the window has a compositing surface ready before we try to capture it
-  win.webContents.setBackgroundThrottling(false);
+  const createCaptureWindow = () => {
+    const window = new BrowserWindow({
+      show: false,
+      width: width,
+      height: height,
+      useContentSize: true,
+      enableLargerThanScreen: true,
+      skipTaskbar: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        // Windows needs an offscreen compositor without a desktop surface.
+        offscreen: process.platform === 'win32'
+      }
+    });
+    window.webContents.setBackgroundThrottling(false);
+    return window;
+  };
+  let win = createCaptureWindow();
 
   const slidePaths: string[] = [];
-  const slideHtmlPath = path.join(outputDir, 'slide_render.html');
+  const slideHtmlPaths: string[] = [];
 
   const captureSlideFallback = async (cw: number, ch: number): Promise<Buffer> => {
     const base64: string = await win.webContents.executeJavaScript(`
@@ -552,6 +577,16 @@ export async function generateSlidesForAlbum(
 
   try {
     for (let i = 0; i < album.tracks.length; i++) {
+      if (i > 0 && win.webContents.isOffscreen()) {
+        // Give each song its own offscreen view. Reusing a navigated view in
+        // older Chromium can leave the previous document's bitmap attached.
+        const previous = win;
+        win = createCaptureWindow();
+        previous.webContents.stopPainting();
+        previous.close();
+      }
+      const slideHtmlPath = path.join(outputDir, `slide_render_${i}.html`);
+      slideHtmlPaths.push(slideHtmlPath);
       const htmlContent = getSlideHTML(album, i, settings, coverBase64, jewelCaseSrc, coverSources, backCoverSources[i]);
       
       // Use a local HTML document instead of an oversized data URL. Large cover art
@@ -577,8 +612,8 @@ export async function generateSlidesForAlbum(
       for (let attempt = 0; attempt < 3 && pngBuffer === null; attempt++) {
         try {
           // Force a frame commit so Chromium's compositor produces a surface
-          await win.webContents.beginFrameSubscription?.(() => {});
-          const image = await win.webContents.capturePage();
+          if (!win.webContents.isOffscreen()) await win.webContents.beginFrameSubscription?.(() => {});
+          const image = await captureRenderedWindow(win);
           const resizedImage = image.resize({ width, height, quality: 'best' });
           pngBuffer = resizedImage.toPNG();
         } catch (err) {
@@ -621,7 +656,7 @@ export async function generateSlidesForAlbum(
         const captureAngle = async (angle: number, filename: string) => {
           await win.webContents.executeJavaScript(`document.querySelector('.jewel-flip').style.transform = 'rotateY(${angle}deg)'`);
           await new Promise(resolve => setTimeout(resolve, 20));
-          const image = await win.webContents.capturePage();
+          const image = await captureRenderedWindow(win);
           if (image.isEmpty()) throw new Error(`Could not capture jewel-case turn for song ${i + 1}`);
           await fs.promises.writeFile(path.join(outputDir, filename), image.resize({ width, height, quality: 'best' }).toPNG());
         };
@@ -675,7 +710,7 @@ export async function generateSlidesForAlbum(
             });
           })()`);
           await new Promise(resolve => setTimeout(resolve, 16));
-          const transitionImage = await win.webContents.capturePage();
+          const transitionImage = await captureRenderedWindow(win);
           if (transitionImage.isEmpty()) throw new Error(`Could not capture Cover Flow transition frame ${frame + 1} for song ${i + 1}`);
           await fs.promises.writeFile(path.join(outputDir, `transition_${i}_${String(frame).padStart(2, '0')}.png`),
             transitionImage.resize({ width, height, quality: 'best' }).toPNG());
@@ -683,10 +718,9 @@ export async function generateSlidesForAlbum(
       }
     }
   } finally {
+    if (win.webContents.isOffscreen()) win.webContents.stopPainting();
     win.close();
-    if (fs.existsSync(slideHtmlPath)) {
-      await fs.promises.unlink(slideHtmlPath).catch(() => {});
-    }
+    await Promise.all(slideHtmlPaths.map(file => fs.promises.unlink(file).catch(() => {})));
   }
 
   return slidePaths;
