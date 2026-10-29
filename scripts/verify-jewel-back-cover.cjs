@@ -1,6 +1,9 @@
 // Run after build: electron scripts/verify-jewel-back-cover.cjs
 // All profile, artwork and audio writes use a disposable temporary fixture.
 const { app, BrowserWindow, ipcMain } = require('electron');
+// Hosted Windows runners have no reliable native GPU; retain the same render
+// and pixel checks using Chromium's software compositor.
+if (process.env.YOUBEAT_SOFTWARE_RENDERING === '1') app.disableHardwareAcceleration();
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

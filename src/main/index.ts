@@ -17,6 +17,7 @@ app.setName('YouBeat');
 // Copy the previous profile once so renaming does not reset settings or edits.
 // Leave the old profile intact as a recoverable backup.
 const releaseTest = process.argv.includes('--desktop-self-test');
+if (releaseTest && process.env.YOUBEAT_SOFTWARE_RENDERING === '1') app.disableHardwareAcceleration();
 const testProfile = process.argv.find(arg => arg.startsWith('--test-profile='))?.slice('--test-profile='.length);
 if (releaseTest && (!testProfile || !path.isAbsolute(testProfile))) throw new Error('Release self-test requires an isolated absolute --test-profile');
 const profilePath = releaseTest ? testProfile! : path.join(app.getPath('appData'), 'YouBeat');

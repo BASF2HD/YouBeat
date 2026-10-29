@@ -557,7 +557,7 @@ export async function generateSlidesForAlbum(
       // Use a local HTML document instead of an oversized data URL. Large cover art
       // and jewel-case assets otherwise exceed Chromium's URL limits (ERR_INVALID_URL).
       await fs.promises.writeFile(slideHtmlPath, htmlContent, 'utf-8');
-      await win.loadFile(slideHtmlPath);
+      await win.loadURL(pathToFileURL(slideHtmlPath).href);
 
       // Make image decoding deterministic before capturing the offscreen frame.
       await win.webContents.executeJavaScript(`Promise.all(
