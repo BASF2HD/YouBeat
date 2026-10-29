@@ -12,7 +12,7 @@ export default defineConfig({
     emptyOutDir: true,
     minify: false,
     lib: {
-      entry: Object.fromEntries(['index', 'preload', 'metadata', 'scanner', 'queueManager', 'rendererService', 'ffmpegService']
+      entry: Object.fromEntries(['index', 'preload', 'metadata', 'scanner', 'queueManager', 'rendererService', 'ffmpegService', 'artworkStore']
         .map(name => [name, resolve(__dirname, `src/main/${name}.ts`)])),
       formats: ['cjs'],
       fileName: (_format, name) => `${name}.js`,

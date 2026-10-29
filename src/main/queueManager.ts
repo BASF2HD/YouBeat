@@ -72,6 +72,8 @@ class QueueManager {
       cache[albumId] = {
         albumName: updatedAlbum.albumName,
         year: updatedAlbum.year,
+        coverPath: updatedAlbum.coverPath,
+        backCoverPath: updatedAlbum.backCoverPath || null,
         tracks: updatedAlbum.tracks.map(t => ({
           id: t.id,
           trackNumber: t.trackNumber,

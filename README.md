@@ -17,10 +17,11 @@ These show the actual app UI with synthetic demo albums and artwork, not a perso
 | Computer | Package | Use |
 | --- | --- | --- |
 | Apple Silicon Mac, macOS 12+ | `.dmg` or Mac `.zip` | Install from the DMG, or unzip and open the `.app` to test without installation. |
+| Intel Mac, macOS 12+ | `mac-x64.dmg` or `mac-x64.zip` | Choose the Intel build for a Mac with an Intel processor. |
 | Windows x64 | `Setup.exe` | Install with a selectable destination. |
 | Windows x64 | `Portable.exe` | Run without installing. |
 
-Standalone downloads include Electron and FFmpeg. You do **not** need Node.js, npm or a separate FFmpeg installation. Current Mac release packages are Apple Silicon, not Intel Mac packages.
+Standalone downloads include Electron and FFmpeg. You do **not** need Node.js, npm or a separate FFmpeg installation. Separate native Mac packages are available for Apple Silicon (`arm64`) and Intel (`x64`).
 
 Builds are unsigned and not Apple-notarized. Verify the version, source and release `SHA256SUMS` before opening; do not disable system security globally. The GitHub Pages website offers information/downloads, not browser-based rendering.
 
@@ -62,6 +63,10 @@ Cover Flow captions are constrained to the centre sleeve width, with ellipsis fo
 Resize the preview pane with its divider handle. **Previous**, **Next**, the song-position slider and **Play slides** let you inspect song-to-song visual transitions before exporting. This is a slide/layout preview, not an audio-quality listening test.
 
 The jewel-case overlay ships from `resources/cd-jewel-case-overlay.png`. Replacing a source asset does not update an already-built standalone application: rebuild and relaunch that package to include the new file.
+
+For optional back artwork, open an album's **Edit** dialog, choose its **Back cover**, and **Save overrides**. You can also change the front cover there. Use **Crop / fit to square** to adjust the back: **Crop to fill square** offers zoom and position controls; **Fit whole image** keeps the entire image with black padding. Choose **Use square artwork**, then **Save overrides**. Selected and cropped images are saved as separate copies inside YouBeat's profile, leaving source files unchanged. Replacing an image, even with the same filename, refreshes its preview.
+
+With the **CD jewel case** theme, each song turns the case from right to left over one second, shows the back for five seconds, then turns back to the front over one second in both Live Preview and exported video. Short songs shorten the turns and hold to fit. Albums without a back cover keep showing the front. Artwork choices persist across scans and restarts. Remove a back cover in the same dialog to disable its flip. Turn off **Fast Resume / skip existing** when replacing an already rendered video.
 
 ## Mix Builder
 
@@ -130,6 +135,7 @@ VITE_DEV_SERVER=true npm run electron:dev
 npm run build
 npm run pack          # unpacked app for the current computer
 npm run dist:mac      # native macOS arm64 DMG + app ZIP
+npm run dist:mac:intel # native Intel macOS x64 DMG + app ZIP
 npm run dist:win      # native Windows x64 Setup + Portable EXE
 node scripts/verify-scan-discovery.cjs
 node scripts/test-packaged.mjs "path/to/packaged/executable"

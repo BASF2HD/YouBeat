@@ -8,6 +8,7 @@ import { getArtworkLayout } from '../shared/artworkLayout';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { readJewelCaseOverlay } from './jewelCaseAsset';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
+import { getJewelFlipTiming, JEWEL_FLIP_FRAMES, jewelFlipAngle, jewelFlipCSS } from '../shared/jewelFlip';
 
 /**
  * Escapes HTML characters to prevent XSS/rendering issues with metadata text.
@@ -93,7 +94,8 @@ export function getSlideHTML(
   settings: RenderSettings,
   coverBase64: string | null,
   jewelCaseSrc: string | null = null,
-  coverSources: string[] = []
+  coverSources: string[] = [],
+  backCoverSrc: string | null = null
 ): string {
   const trackCount = album.tracks.length;
   const layout = getTrackLayout(trackCount, activeTrackIndex, settings.resolution, settings);
@@ -116,6 +118,11 @@ export function getSlideHTML(
   const jewelCaseOverlayHTML = jewelCaseEnabled
     ? `<img class="jewel-case-overlay" src="${escapeHtml(jewelCaseSrc!)}" />`
     : '';
+  const frontHTML = `<img class="cover-art" src="${escapeHtml(coverImgSrc)}" />${jewelCaseOverlayHTML}`;
+  const flipEnabled = jewelCaseEnabled && Boolean(backCoverSrc);
+  const artworkHTML = flipEnabled
+    ? `<div class="jewel-flip"><div class="jewel-face jewel-front">${frontHTML}</div><div class="jewel-face jewel-back"><img class="cover-art" src="${escapeHtml(backCoverSrc!)}" />${jewelCaseOverlayHTML}</div></div>`
+    : frontHTML;
   const coverflowCover = (index: number) => coverSources[index] || coverImgSrc;
   const sideCount = getCoverflowSideCount(trackCount);
   const flowOffsets = Array.from({ length: sideCount * 2 + 1 }, (_, index) => index - sideCount);
@@ -167,6 +174,7 @@ export function getSlideHTML(
     <head>
       <meta charset="utf-8">
       <style>
+        ${jewelFlipCSS}
         * {
           box-sizing: border-box;
           margin: 0;
@@ -391,9 +399,8 @@ export function getSlideHTML(
       <div class="container ${artworkTheme === 'coverflow' ? 'coverflow-layout' : ''}">
         ${artworkTheme === 'coverflow' ? coverflowHTML : `
         <div class="left-panel">
-          <div class="${coverContainerClass}">
-            <img class="cover-art" src="${coverImgSrc}" />
-            ${jewelCaseOverlayHTML}
+          <div class="${coverContainerClass} ${flipEnabled ? 'jewel-flip-stage' : ''}">
+            ${artworkHTML}
           </div>
         </div>
         <div class="right-panel">
@@ -434,6 +441,20 @@ export async function generateSlidesForAlbum(
   // cover on every track; normal albums reuse their single album cover.
   const coverCache = new Map<string, string>();
   const coverSources: string[] = [];
+  const backCoverSources: Array<string | null> = [];
+  for (const track of album.tracks) {
+    const backPath = track.backCoverPath === undefined ? album.backCoverPath : track.backCoverPath;
+    if (getArtworkTheme(settings) !== 'jewel' || !backPath || !fs.existsSync(backPath)) {
+      backCoverSources.push(null);
+      continue;
+    }
+    if (!coverCache.has(backPath)) {
+      const extension = path.extname(backPath).toLowerCase();
+      const mime = extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
+      coverCache.set(backPath, `data:${mime};base64,${(await fs.promises.readFile(backPath)).toString('base64')}`);
+    }
+    backCoverSources.push(coverCache.get(backPath)!);
+  }
   for (const track of album.tracks) {
     const coverPath = track.coverPath || album.coverPath;
     if (!coverPath || !fs.existsSync(coverPath)) { coverSources.push(''); continue; }
@@ -531,7 +552,7 @@ export async function generateSlidesForAlbum(
 
   try {
     for (let i = 0; i < album.tracks.length; i++) {
-      const htmlContent = getSlideHTML(album, i, settings, coverBase64, jewelCaseSrc, coverSources);
+      const htmlContent = getSlideHTML(album, i, settings, coverBase64, jewelCaseSrc, coverSources, backCoverSources[i]);
       
       // Use a local HTML document instead of an oversized data URL. Large cover art
       // and jewel-case assets otherwise exceed Chromium's URL limits (ERR_INVALID_URL).
@@ -587,6 +608,40 @@ export async function generateSlidesForAlbum(
       const slidePath = path.join(outputDir, `slide_${i}.png`);
       await fs.promises.writeFile(slidePath, pngBuffer);
       slidePaths.push(slidePath);
+
+      // Capture only the moving parts. The back and front holds reuse still PNGs
+      // with exact timestamps, keeping long album exports compact.
+      if (getArtworkTheme(settings) === 'jewel' && backCoverSources[i]) {
+        const timing = getJewelFlipTiming(album.tracks[i].duration);
+        const entries: string[] = ['ffconcat version 1.0'];
+        const addFrame = (filename: string, seconds: number) => {
+          if (seconds <= 0) return;
+          entries.push(`file '${filename}'`, 'option framerate 1000', `duration ${seconds.toFixed(9)}`);
+        };
+        const captureAngle = async (angle: number, filename: string) => {
+          await win.webContents.executeJavaScript(`document.querySelector('.jewel-flip').style.transform = 'rotateY(${angle}deg)'`);
+          await new Promise(resolve => setTimeout(resolve, 20));
+          const image = await win.webContents.capturePage();
+          if (image.isEmpty()) throw new Error(`Could not capture jewel-case turn for song ${i + 1}`);
+          await fs.promises.writeFile(path.join(outputDir, filename), image.resize({ width, height, quality: 'best' }).toPNG());
+        };
+        for (let frame = 0; frame < JEWEL_FLIP_FRAMES; frame++) {
+          const filename = `jewel_${i}_${String(frame).padStart(2, '0')}.png`;
+          await captureAngle(jewelFlipAngle(frame / JEWEL_FLIP_FRAMES), filename);
+          addFrame(filename, timing.turn / JEWEL_FLIP_FRAMES);
+        }
+        const backFilename = `jewel_${i}_back.png`;
+        await captureAngle(jewelFlipAngle(1), backFilename);
+        addFrame(backFilename, timing.hold);
+        // The same frames in reverse perform the return turn without recapture.
+        for (let frame = JEWEL_FLIP_FRAMES - 1; frame >= 0; frame--) {
+          addFrame(`jewel_${i}_${String(frame).padStart(2, '0')}.png`, timing.turn / JEWEL_FLIP_FRAMES);
+        }
+        addFrame(path.basename(slidePath), Math.max(0, timing.duration - timing.total));
+        // The concat demuxer needs a final entry to honour the last duration.
+        entries.push(`file '${path.basename(slidePath)}'`, 'option framerate 1000');
+        await fs.promises.writeFile(path.join(outputDir, `jewel_${i}.ffconcat`), entries.join('\n') + '\n');
+      }
 
       if (getArtworkTheme(settings) === 'coverflow' && i > 0 && album.tracks[i].duration > 0.4) {
         // Render a short gallery movement before the static part of this song.

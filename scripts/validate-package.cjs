@@ -10,6 +10,20 @@ module.exports = async context => {
     throw new Error(`Build on the target OS/CPU with a fresh npm install: this checkout contains ${process.platform}/${process.arch} FFmpeg, but the requested package is ${context.electronPlatformName}/${targetArch}. Cross-platform/universal packaging needs separately provisioned FFmpeg binaries.`);
   }
   const path = require('node:path');
+  const vendorRoot = path.join(context.packager.projectDir, '.vendor', 'ffmpeg');
+  const inspectLinks = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) {
+        const link = fs.readlinkSync(file);
+        const resolved = fs.realpathSync(file);
+        if (path.isAbsolute(link) || path.relative(vendorRoot, resolved).startsWith('..')) {
+          throw new Error('FFmpeg library link must stay relative and inside the bundle: ' + path.relative(vendorRoot, file));
+        }
+      } else if (entry.isDirectory()) inspectLinks(file);
+    }
+  };
+  inspectLinks(vendorRoot);
   const binary = path.join(context.packager.projectDir, '.vendor', 'ffmpeg', 'bin', process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
   if (!binary || !fs.existsSync(binary)) throw new Error('Bundled FFmpeg is missing. Run npm install on the target computer before packaging.');
   const result = spawnSync(binary, ['-version'], { encoding: 'utf8', timeout: 10000 });

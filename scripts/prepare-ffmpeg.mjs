@@ -1,5 +1,5 @@
 // Download binaries at build time, never at app launch. Fail closed on provenance.
-import { mkdir, mkdtemp, cp, writeFile, readFile, chmod } from 'node:fs/promises';
+import { mkdir, mkdtemp, cp, writeFile, readFile, chmod, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -18,7 +18,9 @@ if (process.platform === 'darwin') {
   await download(macBase + name + '.tar.xz', archive, hash);
   const result = spawnSync('tar', ['-xf', archive, '-C', temporary], { stdio: 'inherit' });
   if (result.status !== 0) throw new Error('FFmpeg extraction failed');
-  await cp(path.join(temporary, name), destination, { recursive: true });
+  // Preserve relative library links instead of rewriting them to temporary paths.
+  await rm(destination, { recursive: true, force: true });
+  await cp(path.join(temporary, name), destination, { recursive: true, verbatimSymlinks: true });
   await writeFile(path.join(destination, 'PROVENANCE.txt'), macBase + name + '.tar.xz\nSHA256: ' + hash + '\nSources and build scripts: https://github.com/dfloresc/ffmpeg-macos-builds/tree/v9.0.1-1\nCorresponding source archives accompany the YouBeat GitHub Release.\n');
 } else if (process.platform === 'win32' && process.arch === 'x64') {
   const source = createRequire(import.meta.url)('ffmpeg-static');

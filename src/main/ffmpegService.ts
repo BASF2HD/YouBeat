@@ -18,8 +18,8 @@ export function resolveFfmpegPath(configuredPath: string): string {
     const executableName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
     const candidates = [
       path.join(process.resourcesPath, 'ffmpeg', 'bin', executableName),
-      path.join(app.getAppPath(), '.vendor', 'ffmpeg', 'bin', executableName),
       ...(!app.isPackaged ? [path.join(app.getAppPath(), 'node_modules', 'ffmpeg-static', executableName)] : []),
+      path.join(app.getAppPath(), '.vendor', 'ffmpeg', 'bin', executableName),
       path.join(app.getAppPath(), 'bin', executableName),
       path.join(process.cwd(), 'bin', executableName),
       '/opt/homebrew/bin/ffmpeg',
@@ -442,8 +442,20 @@ export async function renderAlbumVideo(
     const frameCount = Math.max(1, Math.ceil(stillDuration));
     const durationMs = Math.max(1, Math.round(stillDuration * 1000));
     const stillFrameRate = `${frameCount * 1000}/${durationMs}`;
+    const jewelTimeline = path.join(tempDir, `jewel_${i}.ffconcat`);
+    const hasJewelFlip = getArtworkTheme(settings) === 'jewel' && fs.existsSync(jewelTimeline);
 
-    const args = hasCoverflowTransition ? [
+    const args = hasJewelFlip ? [
+      '-y', '-f', 'concat', '-safe', '0', '-i', jewelTimeline,
+      '-i', track.filePath,
+      '-map', '0:v:0', '-map', '1:a:0',
+      '-pix_fmt', 'yuv420p',
+      ...codecArgs,
+      ...audioArgs,
+      '-fps_mode', 'vfr', '-t', String(duration),
+      '-video_track_timescale', '90000',
+      segmentPath
+    ] : hasCoverflowTransition ? [
       '-y',
       '-framerate', '30', '-start_number', '0', '-i', transitionPattern,
       '-loop', '1', '-framerate', stillFrameRate, '-i', slide,

@@ -19,10 +19,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-latest
-            platform: mac
+          - os: macos-15
+            platform: mac-arm64
             command: dist:mac
             binary: dist-package/mac-arm64/YouBeat.app/Contents/MacOS/YouBeat
+          - os: macos-15-intel
+            platform: mac-x64
+            command: dist:mac:intel
+            binary: dist-package/mac/YouBeat.app/Contents/MacOS/YouBeat
           - os: windows-latest
             platform: windows
             command: dist:win
@@ -49,6 +53,8 @@ jobs:
       - run: npm ci
       - run: npm run ${{ matrix.command }}
       - run: node scripts/verify-scan-discovery.cjs
+      - name: Test artwork replacement, crop, preview and animated video
+        run: npx --no-install electron scripts/verify-jewel-back-cover.cjs
       - name: Test the packaged app (isolated synthetic media only)
         run: node scripts/test-packaged.mjs "${{ matrix.binary }}"
       - uses: actions/upload-artifact@v4
@@ -93,7 +99,7 @@ jobs:
         with:
           node-version: 24
       - run: node scripts/release-checksums.mjs release-assets
-      - name: Publish only after both native builds and packaged tests pass
+      - name: Publish only after all three native builds and packaged tests pass
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

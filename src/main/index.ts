@@ -7,6 +7,7 @@ import { scanForAlbums, ScanProgress } from './scanner';
 import { parseAlbumFolder } from './metadata';
 import { queueManager } from './queueManager';
 import { readJewelCaseOverlay } from './jewelCaseAsset';
+import { importArtworkFile, readArtwork, saveCroppedArtwork } from './artworkStore';
 import { runPackagedSelfTest } from './releaseSelfTest';
 import { testFfmpegPath, getAvailableHwEncoders, ensureOutputWritable } from './ffmpegService';
 // Suppress benign Electron dev-time security warnings
@@ -226,6 +227,19 @@ ipcMain.handle('select-folder', async () => {
 
 ipcMain.handle('get-jewel-case-overlay', () => readJewelCaseOverlay());
 
+ipcMain.handle('select-artwork', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Choose album artwork',
+    properties: ['openFile'],
+    filters: [{ name: 'Artwork images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }]
+  });
+  const file = result.canceled ? null : result.filePaths[0] || null;
+  return file ? importArtworkFile(file) : null;
+});
+
+ipcMain.handle('read-artwork', (_event, file: string) => readArtwork(file));
+ipcMain.handle('save-cropped-artwork', (_event, dataURL: string) => saveCroppedArtwork(dataURL));
+
 ipcMain.handle('copy-text', (_event, text: string): void => {
   clipboard.writeText(text);
 });
@@ -367,6 +381,11 @@ ipcMain.handle('scan-albums', async (_event, rootFolder: string, recursive: bool
       if (cachedAlbum) {
         if (cachedAlbum.albumName) album.albumName = cachedAlbum.albumName;
         if (cachedAlbum.year) album.year = cachedAlbum.year;
+        if (cachedAlbum.coverPath !== undefined) {
+          album.coverPath = cachedAlbum.coverPath;
+          album.coverFound = Boolean(album.coverPath);
+        }
+        if (cachedAlbum.backCoverPath !== undefined) album.backCoverPath = cachedAlbum.backCoverPath;
         
         // Merge track details
         if (cachedAlbum.tracks && Array.isArray(cachedAlbum.tracks)) {
@@ -437,6 +456,11 @@ ipcMain.handle('render-album', async (_event, albumId: string, settings: RenderS
   if (cached) {
     if (cached.albumName) album.albumName = cached.albumName;
     if (cached.year) album.year = cached.year;
+    if (cached.coverPath !== undefined) {
+      album.coverPath = cached.coverPath;
+      album.coverFound = Boolean(album.coverPath);
+    }
+    if (cached.backCoverPath !== undefined) album.backCoverPath = cached.backCoverPath;
     if (cached.tracks && Array.isArray(cached.tracks)) {
       for (const ct of cached.tracks) {
         const t = album.tracks.find(tr => tr.id === ct.id);

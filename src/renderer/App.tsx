@@ -6,6 +6,8 @@ import { shuffleMixOrder } from '../shared/mixOrder';
 import { getArtworkTheme } from '../shared/artworkTheme';
 import { getCoverflowFontSizes, getCoverflowSideCount } from '../shared/coverflow';
 import appLogo from '../../resources/youbeat-icon.png';
+import { PreviewArtwork } from './PreviewArtwork';
+import { ArtworkCropper } from './ArtworkCropper';
 
 const PREVIEW_PANE_MIN_WIDTH = 320;
 const PREVIEW_PANE_MAX_WIDTH = 720;
@@ -201,6 +203,7 @@ export default function App() {
 
   // Inline Metadata Editor Modal State
   const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
+  const [artworkCropPath, setArtworkCropPath] = useState<string | null>(null);
 
   // Live Preview section visibility & collapse states
   const [showPreviewPane, setShowPreviewPane] = useState<boolean>(() => {
@@ -709,6 +712,7 @@ export default function App() {
   const openMetadataEditor = (album: Album) => {
     // Clone to prevent direct state mutability
     setEditingAlbum(JSON.parse(JSON.stringify(album)));
+    setArtworkCropPath(null);
   };
 
   const handleSaveEditedMetadata = async () => {
@@ -719,9 +723,26 @@ export default function App() {
       if (success) {
         setAlbums(prev => prev.map(a => a.id === editingAlbum.id ? editingAlbum : a));
         setEditingAlbum(null);
+      } else {
+        alert('Could not save album changes. See the Logs tab for details.');
       }
     } catch (err: any) {
       alert(`Failed to save edits: ${err.message}`);
+    }
+  };
+
+  const chooseAlbumArtwork = async (side: 'front' | 'back') => {
+    if (!editingAlbum) return;
+    const albumId = editingAlbum.id;
+    try {
+      const file = await window.api.selectArtwork();
+      if (side === 'back' && file) setArtworkCropPath(null);
+      if (file) setEditingAlbum(current => current?.id === albumId ? {
+        ...current,
+        ...(side === 'front' ? { coverPath: file, coverFound: true } : { backCoverPath: file })
+      } : current);
+    } catch (error: any) {
+      alert(`Could not choose artwork: ${error.message}`);
     }
   };
 
@@ -770,7 +791,7 @@ export default function App() {
     coverPath: orderedMixTracks[0].album.coverPath,
     coverFound: Boolean(orderedMixTracks[0].album.coverPath),
     totalDuration: orderedMixTracks.reduce((sum, item) => sum + item.track.duration, 0),
-    tracks: orderedMixTracks.map((item, index) => ({ ...item.track, trackNumber: index + 1, coverPath: item.album.coverPath })),
+    tracks: orderedMixTracks.map((item, index) => ({ ...item.track, trackNumber: index + 1, coverPath: item.album.coverPath, backCoverPath: item.album.backCoverPath || null })),
     status: 'idle', progress: 0,
   } : null;
   const selectedAlbum = activeTab === 'mix' ? mixPreviewAlbum : albums.find(a => a.id === selectedAlbumId) || null;
@@ -799,9 +820,9 @@ export default function App() {
     const timer = window.setInterval(() => {
       const setter = activeTab === 'mix' ? setMixPreviewIndex : setAlbumPreviewIndex;
       setter(previous => (previous + 1) % selectedAlbum.tracks.length);
-    }, 3000);
+    }, getArtworkTheme(settings) === 'jewel' && (selectedAlbum.tracks[previewActiveIndex]?.backCoverPath || selectedAlbum.backCoverPath) ? 8000 : 3000);
     return () => window.clearInterval(timer);
-  }, [previewPlaying, showPreviewCanvas, activeTab, selectedAlbum?.id, selectedAlbum?.tracks.length]);
+  }, [previewPlaying, showPreviewCanvas, activeTab, selectedAlbum?.id, selectedAlbum?.tracks.length, previewActiveIndex, settings.artworkTheme, selectedAlbum?.backCoverPath]);
   const selectedVideoCodec = window.api.platform === 'darwin' &&
     !['auto', 'h264_videotoolbox', 'libx264'].includes(settings.videoCodec)
     ? 'auto'
@@ -1712,19 +1733,7 @@ export default function App() {
                               </div>
                             ) : <>
                             <div className="preview-left" style={{ flexBasis: `${artworkLayout.coverWidth / artworkLayout.frameWidth * 100}cqw` }}>
-                              <div className={`preview-cover-art-container ${getArtworkTheme(settings) === 'jewel' ? 'jewel-case-enabled' : ''}`} style={{ height: `${artworkLayout.coverHeight / artworkLayout.frameWidth * 100}cqw` }}>
-                                {selectedAlbum.coverFound && selectedAlbum.coverPath ? (
-                                  <img className="preview-cover-art" src={`file:///${(selectedAlbum.tracks[previewActiveIndex]?.coverPath || selectedAlbum.coverPath).replace(/\\/g, '/')}`} />
-                                ) : (
-                                  <div className="preview-cover-placeholder">
-                                    <span>AF</span>
-                                    {selectedAlbum.albumName.slice(0, 20)}
-                                  </div>
-                                )}
-                                {getArtworkTheme(settings) === 'jewel' && jewelCaseOverlay && (
-                                  <img className="preview-jewel-case-overlay" src={jewelCaseOverlay} alt="" />
-                                )}
-                              </div>
+                              <PreviewArtwork album={selectedAlbum} track={selectedAlbum.tracks[previewActiveIndex]} jewel={getArtworkTheme(settings) === 'jewel'} overlay={jewelCaseOverlay} height={`${artworkLayout.coverHeight / artworkLayout.frameWidth * 100}cqw`} />
                             </div>
 
                             <div className="preview-right" style={{ fontFamily: settings.fontFamily }}>
@@ -1777,7 +1786,7 @@ export default function App() {
                           </div>}
                           <div className="preview-stage-meta">
                             <span><i /> Slide sequence preview · no audio</span>
-                            <span>{settings.resolution} · {getArtworkTheme(settings) === 'coverflow' ? 'animated covers' : 'static slides'}</span>
+                            <span>{settings.resolution} · {getArtworkTheme(settings) === 'coverflow' || (getArtworkTheme(settings) === 'jewel' && (selectedAlbum.backCoverPath || selectedAlbum.tracks[previewActiveIndex]?.backCoverPath)) ? 'animated covers' : 'static slides'}</span>
                           </div>
                         </div>
                       )}
@@ -1877,6 +1886,30 @@ export default function App() {
                 </div>
               </div>
 
+              <div className="album-artwork-editor">
+                <span className="input-label">Album artwork</span>
+                <p>In the CD jewel case theme, each song flips to the back for 5 seconds, then returns to the front. Back artwork is optional. Short songs use a shorter hold.</p>
+                <div className="album-artwork-choices">
+                  {(['front', 'back'] as const).map(side => {
+                    const file = side === 'front' ? editingAlbum.coverPath : editingAlbum.backCoverPath;
+                    return <div className="album-artwork-choice" key={side}>
+                      {file ? <img src={`file:///${file.replace(/\\/g, '/')}`} alt={`${side} cover`} /> : <div className="artwork-empty">No {side} cover</div>}
+                      <strong>{side === 'front' ? 'Front cover' : 'Back cover (optional)'}</strong>
+                      <span title={file || ''}>{file?.split(/[\\/]/).pop() || (side === 'back' ? 'Front stays visible when absent' : 'Default artwork')}</span>
+                      <button className="btn btn-secondary" onClick={() => chooseAlbumArtwork(side)}>{file ? 'Change' : 'Choose image'}</button>
+                      {side === 'back' && file && <>
+                        <button className="btn btn-secondary" onClick={() => setArtworkCropPath(file)}>Crop / fit to square</button>
+                        <button className="btn btn-secondary" onClick={() => { setArtworkCropPath(null); setEditingAlbum(current => current ? { ...current, backCoverPath: null } : current); }}>Remove back cover</button>
+                      </>}
+                    </div>;
+                  })}
+                </div>
+                {artworkCropPath && <ArtworkCropper key={artworkCropPath} file={artworkCropPath} onCancel={() => setArtworkCropPath(null)} onApply={file => {
+                  setEditingAlbum(current => current?.id === editingAlbum.id && current.backCoverPath === artworkCropPath ? { ...current, backCoverPath: file } : current);
+                  setArtworkCropPath(current => current === artworkCropPath ? null : current);
+                }} />}
+              </div>
+
               {/* Tracks titles edits */}
               <span className="input-label" style={{ display: 'block', marginBottom: '12px' }}>Song tracklist tags overrides</span>
               
@@ -1919,7 +1952,7 @@ export default function App() {
 
             <footer className="editor-footer">
               <button className="btn btn-secondary" onClick={() => setEditingAlbum(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleSaveEditedMetadata}>Save overrides</button>
+              <button className="btn btn-primary" disabled={Boolean(artworkCropPath)} title={artworkCropPath ? 'Apply or cancel the crop first' : undefined} onClick={handleSaveEditedMetadata}>Save overrides</button>
             </footer>
           </div>
         </div>

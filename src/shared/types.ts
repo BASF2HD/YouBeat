@@ -9,6 +9,7 @@ export interface Track {
   year: string;
   duration: number; // in seconds
   coverPath?: string | null; // Used by mixed-song Cover Flow projects
+  backCoverPath?: string | null;
 }
 
 export interface Album {
@@ -19,6 +20,7 @@ export interface Album {
   tracksCount: number;
   coverPath: string | null; // Local temporary path or extracted path
   coverFound: boolean;
+  backCoverPath?: string | null; // Optional artwork, saved per album
   totalDuration: number; // in seconds
   tracks: Track[];
   status: 'idle' | 'queued' | 'processing' | 'completed' | 'failed';
@@ -76,6 +78,9 @@ export interface IPCAPI {
   getJewelCaseOverlay: () => Promise<string>;
   platform: string;
   selectFolder: () => Promise<string | null>;
+  selectArtwork: () => Promise<string | null>;
+  readArtwork: (file: string) => Promise<string>;
+  saveCroppedArtwork: (dataURL: string) => Promise<string>;
   copyText: (text: string) => Promise<void>;
   scanAlbums: (rootFolder: string, recursive: boolean) => Promise<Album[]>;
   saveAlbumMetadata: (albumId: string, updatedAlbum: Album) => Promise<boolean>;
