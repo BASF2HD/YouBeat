@@ -27,7 +27,7 @@ jobs:
             platform: mac-x64
             command: dist:mac:intel
             binary: dist-package/mac/YouBeat.app/Contents/MacOS/YouBeat
-          - os: windows-latest
+          - os: windows-2022
             platform: windows
             command: dist:win
             binary: dist-package/win-unpacked/YouBeat.exe
